@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>全唐诗主题模型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：单栏阅读页；页首竖排标题如诗卷题签，下接五组实验的主题卡片网格、拆分热图与结论 */
+:root {
+  --bg: #f2f4f1;
+  --surface: #fbfcfa;
+  --ink: #1c2420;
+  --muted: #5a655f;
+  --line: #d6ddd7;
+  --accent: #2f5d86;       /* 石青 */
+  --accent-soft: #dde7f0;
+  --on-accent: #ffffff;
+  --ochre: #9a6a2c;        /* 赭石，用于份量条 */
+  --ok: #2c7a4b;
+  --warn: #9c6400;
+  --bad: #a43b3b;
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111513; --surface: #181e1b; --ink: #e2e8e3; --muted: #98a39c; --line: #2b3530;
+    --accent: #8db4da; --accent-soft: #1d2d3c; --on-accent: #0d1620; --ochre: #d1a062;
+    --ok: #6cc08e; --warn: #e2aa4c; --bad: #e57d7d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111513; --surface: #181e1b; --ink: #e2e8e3; --muted: #98a39c; --line: #2b3530;
+  --accent: #8db4da; --accent-soft: #1d2d3c; --on-accent: #0d1620; --ochre: #d1a062;
+  --ok: #6cc08e; --warn: #e2aa4c; --bad: #e57d7d; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.75;
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1120px; margin-inline: auto; display: grid; gap: 56px; }
+.wrap > *, .section-head > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.3; }
+h2 { font-size: var(--step-2); font-weight: 900; }
+p { margin: 0; }
+.prose { max-width: 66ch; display: grid; gap: 12px; }
+.eyebrow { font-size: var(--step--1); letter-spacing: 0.12em; color: var(--muted); }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--font-data); font-size: 0.9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; }
+
+/* ── 页首 ── */
+.hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: start; padding-top: 48px; }
+.hero h1 {
+  writing-mode: vertical-rl;
+  font-size: 3.25rem; font-weight: 900; letter-spacing: 0.18em;
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: 14px;
+}
+.hero h1 small { font-size: 0.4em; font-weight: 600; color: var(--muted); letter-spacing: 0.3em; margin-block-start: 0.6em; }
+.hero .lead { font-size: var(--step-1); max-width: 40em; }
+.hero-body { display: grid; gap: 20px; min-width: 0; padding-top: 6px; }
+.facts { display: flex; flex-wrap: wrap; gap: 12px 36px; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); }
+.facts div { display: grid; }
+.facts dt { font-size: var(--step--1); color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--font-data); font-size: var(--step-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .hero { grid-template-columns: 1fr; gap: 20px; padding-top: 32px; }
+  .hero h1 { writing-mode: horizontal-tb; font-size: 2.25rem; letter-spacing: 0.06em; border-inline-start: 0; padding-inline-start: 0; border-block-end: 3px solid var(--accent); padding-block-end: 8px; }
+  .hero h1 small { display: block; margin: 4px 0 0; letter-spacing: 0.1em; }
+}
+
+/* ── 方法 ── */
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 32px; margin: 0; padding: 0; list-style: none; }
+.method li { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+.method b { font-family: var(--font-display); font-size: var(--step-1); }
+.method span { color: var(--muted); }
+
+/* ── 实验切换 ── */
+.section-head { display: grid; gap: 8px; }
+.switch { display: flex; flex-wrap: wrap; gap: 16px; }
+.switch fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.switch legend { font-size: var(--step--1); color: var(--muted); padding: 0; letter-spacing: 0.08em; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button {
+  font: inherit; font-size: var(--step--1); color: var(--ink); background: transparent;
+  border: 0; padding: 7px 14px; cursor: pointer;
+}
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button:hover { background: var(--accent-soft); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.run-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); }
+.run-meta .tally { display: flex; gap: 8px; flex-wrap: wrap; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+
+/* ── 主题卡片 ── */
+.topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+.topic {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px 18px; display: grid; gap: 12px; align-content: start; min-width: 0;
+}
+.t-head { display: flex; align-items: center; gap: 10px; font-size: var(--step--1); color: var(--muted); }
+.t-share { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+.meter { width: 56px; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ochre); }
+.chip { font-size: 0.75rem; line-height: 1; padding: 4px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.clear { color: var(--ok); }
+.chip.partial { color: var(--warn); }
+.chip.unclear { color: var(--bad); }
+.topic[data-status="unclear"] { border-style: dashed; }
+.topic h3 { font-size: var(--step-1); font-weight: 600; }
+.chars { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.chars li { display: grid; justify-items: center; gap: 3px; }
+.chars .g { font-family: var(--font-display); font-size: 1.375rem; line-height: 1.2; }
+.chars .w { width: 100%; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.chars .w i { display: block; height: 100%; background: var(--accent); }
+.poems { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.poem { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.poem figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: var(--step--1); }
+.poem .pt { font-family: var(--font-display); font-weight: 600; font-size: var(--step-0); }
+.poem .pa { color: var(--muted); }
+.poem .pp { margin-inline-start: auto; color: var(--muted); }
+.verse { font-family: var(--font-display); font-size: var(--step-0); line-height: 1.8; overflow-wrap: anywhere; }
+.verse span { display: block; }
+.verse.clamp span:nth-child(n+4) { display: none; }
+.more { font: inherit; font-size: var(--step--1); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; }
+.more:hover { text-decoration: underline; }
+
+/* ── 拆分热图 ── */
+.heat-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.heat { border-collapse: collapse; font-size: var(--step--1); min-width: 640px; width: 100%; }
+.heat th, .heat td { border-bottom: 1px solid var(--line); }
+.heat thead th { vertical-align: bottom; padding: 10px 4px 8px; font-weight: 500; }
+.heat thead th.col { width: 52px; }
+.heat .vname { writing-mode: vertical-rl; font-family: var(--font-display); letter-spacing: 0.06em; display: inline-block; max-height: 9.5em; overflow: hidden; }
+.heat .vnum { display: block; font-family: var(--font-data); color: var(--muted); margin-top: 6px; }
+.heat .corner { text-align: start; color: var(--muted); padding-inline: 12px; font-weight: 400; }
+.heat tbody th { text-align: start; font-weight: 400; padding: 6px 12px; white-space: nowrap; }
+.heat tbody th .rn { font-family: var(--font-data); color: var(--muted); display: inline-block; width: 1.6em; }
+.heat tbody th .rc { color: var(--muted); font-family: var(--font-data); margin-inline-start: 6px; }
+.heat td {
+  text-align: center; font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  background: color-mix(in oklab, var(--accent) calc(var(--v) * 100%), var(--surface));
+  color: var(--ink); padding: 6px 2px;
+}
+.heat td.hi { color: var(--on-accent); }
+.heat td.top { box-shadow: inset 0 0 0 2px var(--ink); }
+.heat tr.group-start th, .heat tr.group-start td { border-top: 2px solid var(--muted); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); font-size: var(--step--1); }
+.ramp { width: 140px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--surface), var(--accent)); border: 1px solid var(--line); }
+
+/* ── 对比表 ── */
+.table-wrap { overflow-x: auto; }
+table.cmp { border-collapse: collapse; width: 100%; min-width: 560px; }
+.cmp th, .cmp td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmp thead th { font-size: var(--step--1); color: var(--muted); font-weight: 500; }
+.cmp tbody th { font-weight: 500; white-space: nowrap; }
+
+/* ── 结论 ── */
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px 32px; margin: 0; padding: 0; list-style: none; counter-reset: f; }
+.findings li { display: grid; gap: 6px; min-width: 0; }
+.findings h3 { font-size: var(--step-1); font-weight: 600; }
+.findings p { color: var(--muted); }
+
+/* ── 停用字 ── */
+.stop { display: grid; gap: 10px; }
+.stop-row { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.stop-row span:first-child { color: var(--muted); font-size: var(--step--1); }
+.stop-row .glyphs { font-family: var(--font-display); font-size: var(--step-1); letter-spacing: 0.35em; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .stop-row { grid-template-columns: 1fr; gap: 0; } }
+
+footer { color: var(--muted); font-size: var(--step--1); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { .topic { transition: border-color .15s; } .topic:hover { border-color: var(--muted); } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <h1>全唐诗的主题<small>LDA 主题模型</small></h1>
+    <div class="hero-body">
+      <p class="eyebrow">CHI3242 · 第 7 周练习 · 主题模型</p>
+      <p class="lead">把《全唐诗》每一首诗当作一篇文件，以字为单位，用 LDA 找出“经常一起出现的一组字”。这一页汇总了五组实验：10 个和 20 个主题，不去字、只去虚字、去掉 164 个停用字，以及每个主题的前 10 个字和两首最典型的诗。</p>
+      <dl class="facts">
+        <div><dt>诗</dt><dd>45,726</dd></div>
+        <div><dt>字（去标点）</dt><dd>2,589,335</dd></div>
+        <div><dt>字表（字频 ≥ 5）</dt><dd>5,481</dd></div>
+        <div><dt>实验</dt><dd>5 组</dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <section class="section-head" aria-labelledby="m-h">
+    <h2 id="m-h">做法</h2>
+    <ul class="method">
+      <li><b>语料</b><span>qhchina-data 的 <code>全唐诗.json</code>，简体，每首诗一篇文件。</span></li>
+      <li><b>以字为单位</b><span>不分词；只保留汉字，标点和符号全部去掉。</span></li>
+      <li><b>模型</b><span><code>LDAGibbsSampler</code>，200 次迭代，seed 42；alpha = 50/K 并自动估计，beta = 1/K。</span></li>
+      <li><b>典型诗</b><span>该主题比例最高的诗；跳过不到 20 字的残句和重收的诗。</span></li>
+    </ul>
+  </section>
+
+  <section class="section-head" aria-labelledby="r-h" id="runs">
+    <h2 id="r-h">五组实验的主题</h2>
+    <div class="toolbar">
+      <div class="switch" id="run-switch"></div>
+      <div class="switch">
+        <fieldset>
+          <legend>排序</legend>
+          <div class="seg" id="sort-switch">
+            <button type="button" data-sort="id" aria-pressed="true">编号</button>
+            <button type="button" data-sort="share" aria-pressed="false">份量</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="run-meta" id="run-meta"></div>
+    <div class="topics" id="topics"></div>
+    <p class="legend">字下的蓝条 = 该字在主题中的概率（同一组实验内按最大值缩放）；右上的赭色条和百分比 = 主题占全部文本的份量；右侧数字 = 典型诗的主题比例。</p>
+  </section>
+
+  <section class="section-head" aria-labelledby="s-h">
+    <h2 id="s-h">从 10 个到 20 个：哪些主题被拆开了</h2>
+    <div class="prose">
+      <p>每首诗在两个模型里各有一个最主要的主题。下表的每一行是一个 20 主题，每个格子表示这一行的诗里，有多少比例在 10 主题模型中归入该列。行按“主要来自哪个 10 主题”排序，同一列下连续深色的几行，就是被拆开的那个 10 主题。</p>
+    </div>
+    <div class="toolbar">
+      <div class="switch">
+        <fieldset>
+          <legend>实验</legend>
+          <div class="seg" id="split-switch"></div>
+        </fieldset>
+      </div>
+      <div class="legend"><span>0%</span><span class="ramp" aria-hidden="true"></span><span>100%</span><span>黑框 = 该行的最大值</span></div>
+    </div>
+    <div class="heat-wrap"><table class="heat" id="heat"></table></div>
+    <div class="prose" id="split-notes"></div>
+  </section>
+
+  <section class="section-head" aria-labelledby="c-h">
+    <h2 id="c-h">去停用字前后</h2>
+    <div class="table-wrap">
+      <table class="cmp">
+        <thead><tr><th scope="col"></th><th scope="col">原始</th><th scope="col">只去 33 个虚字</th><th scope="col">去 164 个停用字</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">K=10 一看就懂</th><td class="num" id="cmp-k10-raw"></td><td>—</td><td class="num" id="cmp-k10-clean"></td></tr>
+          <tr><th scope="row">K=20 一看就懂</th><td class="num" id="cmp-k20-raw"></td><td class="num" id="cmp-k20-stop"></td><td class="num" id="cmp-k20-clean"></td></tr>
+          <tr><th scope="row">看不懂的主题</th><td>“不 无 有 为 何 人 一”主导的虚字主题</td><td>“人 年 日”打头的泛义主题</td><td>没有纯虚字主题；乐府民歌、神物两个主题比较勉强</td></tr>
+          <tr><th scope="row">新出现</th><td>—</td><td>离别相思、禅寺、文士仕途、寓言讽喻</td><td>游仙和闲居叹老（K=10 就出现）、田园、怀古、庭园咏物</td></tr>
+          <tr><th scope="row">消失</th><td>—</td><td>口语诗</td><td>骚体（兮）、口语诗等文体主题</td></tr>
+          <tr><th scope="row">少于 24 字的诗</th><td class="num">3,529</td><td>—</td><td class="num">11,706</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section-head" aria-labelledby="f-h">
+    <h2 id="f-h">结论</h2>
+    <ul class="findings">
+      <li><h3>题材主题很清楚</h3><p>边塞、江行、山林寺院、郊庙乐章、花间艳词、秋夜，前几个字就是意象，典型诗的主题比例在 0.9 以上。边塞和江行在每组实验里都几乎不变，是用字最独立的两类题材。</p></li>
+      <li><h3>虚字主题是文体，不是题材</h3><p>不去字时，“不 无 有 为 何”会自成主题。读典型诗会发现它们对应骚体、议论和晚唐口语诗，抓到的是语体。</p></li>
+      <li><h3>停用字表是研究者的选择</h3><p>研究题材就去停用字：K=10 的十个主题全部可以命名，还多出游仙、闲居叹老。研究文体就别去：“兮”字主题和口语主题会随之消失。</p></li>
+      <li><h3>主题数决定粒度</h3><p>10 个主题给出大类，20 个主题拆出诗歌传统：送别拆成羁旅、离情、怀古；德·道拆成郊庙乐章和议论讽谏；春花拆成花间词和春景。</p></li>
+      <li><h3>一定要读诗</h3><p>字表有时会误导。原始 K=20 的“清幽”主题收了崔萱写情的《叙别》；去停用字后 K=20 的主题 14 两首典型诗都是韦应物，更像个人风格。</p></li>
+      <li><h3>短诗不可靠</h3><p>残句只有十几个字，主题比例常接近 1；去停用字后短诗更多。挑典型诗时要设最低字数。</p></li>
+    </ul>
+  </section>
+
+  <section class="section-head" aria-labelledby="w-h">
+    <h2 id="w-h">停用字表</h2>
+    <p class="prose">qhchina 自带的古汉语表只有 30 多个字，连“有 何 为 我 一”都没有，所以另外整理了这份 <code>stopwords.txt</code>。有意保留：君、道、千、万、子。</p>
+    <div class="stop" id="stop"></div>
+  </section>
+
+  <footer>
+    <p>代码：<code>tang_lda.py</code>（训练）· <code>build_summary.py</code>（生成本页）。详细分析：<code>分析.md</code>、<code>分析_去停用词.md</code>。</p>
+    <p>主题名称是根据前 10 个字和典型诗人工取的，模型本身不给主题命名。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = {"runs": [{"id": "k10", "label": "10 个主题", "group": "原始", "desc": "只去标点，不去任何字。", "stop": 0, "k": 10, "topics": [{"id": 0, "name": "春花·艳情", "status": "clear", "share": 0.0983, "words": [["花", 0.02166], ["春", 0.01635], ["红", 0.0119], ["风", 0.01009], ["香", 0.00967], ["金", 0.00944], ["玉", 0.00902], ["不", 0.00894], ["人", 0.00808], ["一", 0.00594]], "poems": [{"title": "女冠子", "author": "欧阳炯", "prob": 0.9775, "text": "薄妆桃脸，满面纵横花靥。艳情多，绶带盘金缕， 轻裙透碧罗。含羞眉乍敛，微语笑相和。不会频偷眼，意如何？ 秋宵秋月，一朵荷花初发。照前池，摇曳熏香夜， 婵娟对镜时。蕊中千点泪，心里万条丝。恰似轻盈女，好风姿。"}, {"title": "咏柳二首 一", "author": "顾云", "prob": 0.9572, "text": "带露含烟处处垂，绽黄摇绿嫩参差。长堤未见风飘絮， 广陌初怜日映丝。斜傍画筵偷舞态，低临妆阁学愁眉。"}]}, {"id": 1, "name": "说理·议论（虚字）", "status": "unclear", "share": 0.0891, "words": [["有", 0.00608], ["无", 0.00587], ["为", 0.00565], ["自", 0.00551], ["所", 0.00521], ["何", 0.0052], ["心", 0.00512], ["不", 0.00501], ["然", 0.00467], ["可", 0.00456]], "poems": [{"title": "高士咏於陵夫妻", "author": "吴筠", "prob": 0.9298, "text": "皎皎於陵子，己贤妻亦明。安兹道德重，顾彼浮华轻。琴书不为务，禄位不可荣。逃迹终灌园，谁能达世情。"}, {"title": "余昔自西滨得兰数本,移艺于庭,亦既逾岁,而芃然蕃殖，自余游者未始以芳草为遇矣。因悲夫物有厌常而反，不若混然者有之焉，遂寄情于此", "author": "温庭筠", "prob": 0.8731, "text": "寓赏本殊致，意幽非我情。吾常有流浅，外物无重轻。各言艺幽深，彼美香素茎。岂为赏者设，自保孤根生。易地无赤株，丽土亦同荣。赏际林壑近，泛余烟露清。余怀既郁陶，尔类徒纵横。妍蚩苟不信，宠辱何为惊。贞隐谅无迹，激时犹拣名。幽丛霭绿畹，岂必怀归耕。"}]}, {"id": 2, "name": "离别·羁旅", "status": "clear", "share": 0.154, "words": [["人", 0.01477], ["日", 0.01158], ["不", 0.01041], ["山", 0.01038], ["春", 0.01026], ["归", 0.00996], ["年", 0.00995], ["别", 0.00883], ["风", 0.00833], ["去", 0.0081]], "poems": [{"title": "春日将欲东归寄新及第苗绅先辈", "author": "温庭筠", "prob": 0.9707, "text": "几年辛苦与君同，得丧悲欢尽是空。犹喜故人先折桂， 自怜羁客尚飘蓬。三春月照千山道，十日花开一夜风。知有杏园无路入，马前惆怅满枝红。"}, {"title": "送李录事兄归襄邓", "author": "刘长卿", "prob": 0.9707, "text": "十年多难与君同，几处移家逐转蓬。白首相逢征战后， 青春已过乱离中。行人杳杳看西月，归马萧萧向北风。汉水楚云千万里，天涯此别恨无穷。"}]}, {"id": 3, "name": "江行·水路", "status": "clear", "share": 0.0856, "words": [["江", 0.02271], ["水", 0.01967], ["山", 0.01389], ["风", 0.01138], ["云", 0.01047], ["舟", 0.00979], ["南", 0.00837], ["月", 0.00823], ["秋", 0.00823], ["流", 0.00781]], "poems": [{"title": "重过宣峰寺山房，寄灵一上人", "author": "刘长卿", "prob": 0.9553, "text": "西陵潮信满，岛屿入中流。越客依风水，相思南渡头。寒光生极浦，暮雪映沧洲。何事扬帆去，空惊海上鸥。"}, {"title": "夕次桐庐", "author": "张祜", "prob": 0.9553, "text": "百里清溪口，扁舟此去过。晚潮风势急，寒叶雨声多。戍出山头鼓，樵通竹里歌。不堪无酒夜，回首梦烟波。"}]}, {"id": 4, "name": "虚字·口语议论", "status": "unclear", "share": 0.0993, "words": [["不", 0.03464], ["人", 0.01912], ["无", 0.01399], ["有", 0.01378], ["为", 0.01293], ["我", 0.01266], ["一", 0.01229], ["何", 0.01226], ["如", 0.01162], ["君", 0.01109]], "poems": [{"title": "二风诗乱风诗五篇至伤", "author": "元结", "prob": 0.9594, "text": "夫可伤兮？伤王乎，欲何为乎？将蠹枯矣，无人救乎？ 蠹枯及矣，不可救乎？嗟伤王！自为人君，变为人奴！ 为人君者，忘戒乎。"}, {"title": "讥韦玎吟以韦字为韵", "author": "利涉", "prob": 0.9364, "text": "我之佛法是无为，何故今朝得有为。无韦始得三数载，不知此复是何韦。"}]}, {"id": 5, "name": "郊庙·宫廷", "status": "clear", "share": 0.0888, "words": [["天", 0.01218], ["玉", 0.00709], ["金", 0.007], ["三", 0.00654], ["云", 0.00625], ["龙", 0.00618], ["日", 0.00588], ["宫", 0.00574], ["朝", 0.0056], ["神", 0.00533]], "poems": [{"title": "郊庙歌辞享太庙乐章钧天舞", "author": "佚名", "prob": 0.9804, "text": "承天抚箓，纂圣登皇。遐清万宇，仰协三光。功成日用，道济时康。璇图载永，宝历斯昌。日月扬晖，烟云烂色。河岳修贡，神祇效职。舜风攸偃，尧曦先就。睿感通寰，孝思浃宙。奉扬先德，虔遵曩狩。展义天扃，飞英云岫。化逸王表，神凝帝先。乘云厌俗，驭日登玄。"}, {"title": "宗庙九德之歌辞", "author": "褚亮", "prob": 0.9544, "text": "皇祖诞庆，于昭于天。积德斯远，茂攸绪先。维文应历，神武弘宣。肇迹□水，成功坂泉。道光覆载，声穆吉先。式备牺象，用□牲牷。礼终九献，乐展四悬。神贶景福，遐哉永年。"}]}, {"id": 6, "name": "边塞·战争", "status": "clear", "share": 0.0714, "words": [["马", 0.01117], ["天", 0.01021], ["将", 0.00745], ["龙", 0.00671], ["不", 0.00665], ["军", 0.00639], ["白", 0.00607], ["城", 0.00595], ["云", 0.00592], ["兵", 0.00564]], "poems": [{"title": "横吹曲辞出塞", "author": "马戴", "prob": 0.9348, "text": "金带连环束战袍，马头冲雪度临洮。卷旗夜劫单于帐，乱斫胡兵缺宝刀。"}, {"title": "凉州词", "author": "薛逢", "prob": 0.9348, "text": "昨夜蕃兵报国仇，沙州都护破凉州。黄河九曲今归汉，塞外纵横战血流。"}]}, {"id": 7, "name": "山林·隐逸·僧寺", "status": "clear", "share": 0.1034, "words": [["山", 0.01993], ["云", 0.01282], ["石", 0.01104], ["松", 0.00943], ["水", 0.00712], ["人", 0.00712], ["林", 0.00708], ["峰", 0.00646], ["来", 0.00639], ["泉", 0.00623]], "poems": [{"title": "寄白阁默公", "author": "贾岛", "prob": 0.9558, "text": "已知归白阁，山远晚晴看。石室人心静，冰潭月影残。微云分片灭，古木落薪干。后夜谁闻磬，西峰绝顶寒。"}, {"title": "寄山中高逸人", "author": "孟贯", "prob": 0.9558, "text": "烟霞多放旷，吟啸是寻常。猿共摘山果，僧邻住石房。蹑云双屐冷，采药一身香。我忆相逢夜，松潭月色凉。"}]}, {"id": 8, "name": "秋夜·月色", "status": "clear", "share": 0.0798, "words": [["月", 0.01594], ["风", 0.01419], ["夜", 0.01279], ["清", 0.01178], ["秋", 0.01079], ["寒", 0.00938], ["声", 0.00877], ["云", 0.00819], ["光", 0.00817], ["露", 0.00728]], "poems": [{"title": "赋得月照冰池", "author": "叶季良", "prob": 0.9693, "text": "霁夕云初敛，栖娥月未亏。圆光生碧海，素色满瑶池。天迥轮空见，波凝影讵窥。浮霜玉比彩，照像镜同规。皎洁寒偏净，裴回夜转宜。谁怜幽境在，长与赏心随。"}, {"title": "咏露", "author": "李正封", "prob": 0.9443, "text": "霏霏灵液重，云表无声落。沾树急玄蝉，洒池栖皓鹤。流尘清远陌，飞月澄高阁。宵润玉堂帘，曙寒金井索。佳人比珠泪，坐感红绡薄。"}]}, {"id": 9, "name": "近体口语·人生感慨", "status": "unclear", "share": 0.1302, "words": [["不", 0.01514], ["无", 0.01137], ["人", 0.01017], ["得", 0.00845], ["一", 0.00837], ["时", 0.00828], ["是", 0.00796], ["来", 0.00788], ["年", 0.00784], ["酒", 0.00764]], "poems": [{"title": "寄王六侍御", "author": "张籍", "prob": 0.9693, "text": "渐觉近来筋力少，难堪今日在风尘。谁能借问功名事， 只自扶持老病身。贵得药资将助道，肯嫌家计不如人。洞庭已置新居处，归去安期与作邻。"}, {"title": "寄湘幕王重书记", "author": "齐己", "prob": 0.9688, "text": "抛掷浟江旧钓矶，日参筹画废吟诗。可能有事关心后， 得似无人识面时。官好近闻加茜服，药灵曾说换霜髭。高才直气平生志，除却徒知即不知。"}]}]}, {"id": "k20", "label": "20 个主题", "group": "原始", "desc": "只去标点，不去任何字。", "stop": 0, "k": 20, "topics": [{"id": 0, "name": "惜春·伤春", "status": "clear", "share": 0.0466, "words": [["春", 0.02808], ["花", 0.02682], ["不", 0.01632], ["风", 0.01602], ["无", 0.01213], ["来", 0.01155], ["年", 0.01121], ["时", 0.01112], ["人", 0.01099], ["一", 0.00998]], "poems": [{"title": "过南邻花园", "author": "雍陶", "prob": 0.8716, "text": "莫怪频过有酒家，多情长是惜年华。春风堪赏还堪恨，才见开花又落花。"}, {"title": "春题二首 二", "author": "崔道融", "prob": 0.8704, "text": "满眼桃李花，愁人如不见。别有惜花人，东风莫吹散。"}]}, {"id": 1, "name": "边塞", "status": "clear", "share": 0.0426, "words": [["马", 0.01625], ["军", 0.01116], ["将", 0.01089], ["城", 0.01017], ["天", 0.01009], ["兵", 0.0096], ["胡", 0.00929], ["风", 0.00897], ["边", 0.00863], ["战", 0.00857]], "poems": [{"title": "乐府杂曲鼓吹曲辞上之回", "author": "卢照邻", "prob": 0.8828, "text": "回中道路险，萧关烽候多。五营屯北地，万乘出西河。单于拜玉玺，天子按雕戈。振旅汾川曲，秋风横大歌。"}, {"title": "送耿十三湋复往辽海", "author": "戴叔伦", "prob": 0.8828, "text": "仗剑万里去，孤城辽海东。旌旗愁落日，鼓角壮悲风。野迥边尘息，烽消戍垒空。辕门正休暇，投策拜元戎。"}]}, {"id": 2, "name": "秋夜·闺怨", "status": "clear", "share": 0.0296, "words": [["夜", 0.03143], ["声", 0.02614], ["月", 0.02518], ["风", 0.01324], ["明", 0.01285], ["秋", 0.01211], ["一", 0.01121], ["不", 0.01109], ["寒", 0.01091], ["听", 0.01005]], "poems": [{"title": "秋闺", "author": "邵士彦", "prob": 0.8361, "text": "斜日空庭暮，幽闺积恨盈。细风吹帐冷，微月度窗明。怨坐啼相续，愁眠梦不成。调琴欲有弄，畏作断肠声。"}, {"title": "清湘词二首 二", "author": "刘禹锡", "prob": 0.8318, "text": "斑竹枝，斑竹枝，泪痕点点寄相思。楚客欲闻瑶瑟怨， 潇湘深夜月明时。"}]}, {"id": 3, "name": "清幽·玄理", "status": "partial", "share": 0.0548, "words": [["清", 0.00968], ["云", 0.00802], ["心", 0.0078], ["林", 0.00759], ["幽", 0.00731], ["山", 0.00671], ["风", 0.00656], ["高", 0.00605], ["自", 0.00603], ["然", 0.00593]], "poems": [{"title": "小园纳凉即事", "author": "苏颋", "prob": 0.8139, "text": "烦暑避蒸郁，居闲习高明。长风自远来，层阁有馀清。散洒纳凉气，萧务遗世情。奈何夸大隐，终日系尘缨。"}, {"title": "叙别", "author": "崔萱", "prob": 0.8064, "text": "碧池漾漾春水绿，中有佳禽暮栖宿。愿持此意永相贻，只虑君情中反覆。"}]}, {"id": 4, "name": "田园·春景·故园", "status": "clear", "share": 0.0426, "words": [["春", 0.02408], ["花", 0.02336], ["人", 0.01678], ["归", 0.01626], ["草", 0.01304], ["山", 0.01274], ["飞", 0.01234], ["日", 0.01214], ["树", 0.01188], ["家", 0.01074]], "poems": [{"title": "过故洛城", "author": "白居易", "prob": 0.9035, "text": "故城门前春日斜，故城门里无人家。市朝欲认不知处，漠漠野田飞草花。"}, {"title": "春行寄兴", "author": "李华", "prob": 0.8714, "text": "宜阳城下草萋萋，涧水东流复向西。芳树无人花自落，春山一路鸟空啼。"}]}, {"id": 5, "name": "叹老·人生", "status": "partial", "share": 0.0428, "words": [["不", 0.02132], ["无", 0.01489], ["人", 0.01066], ["老", 0.01009], ["年", 0.00994], ["有", 0.00978], ["我", 0.00962], ["日", 0.00933], ["为", 0.00855], ["何", 0.00852]], "poems": [{"title": "咏怀", "author": "白居易", "prob": 0.831, "text": "高人乐丘园，中人慕官职。一事尚难成，两途安可得。遑遑干世者，多苦时命塞。亦有爱闲人，又为穷饿逼。我今幸双遂，禄仕兼游息。未尝羡荣华，不省劳心力。妻孥与婢仆，亦免愁衣食。所以吾一家，面无忧喜色。"}, {"title": "去妇", "author": "王建", "prob": 0.7963, "text": "新妇去年胼手足，衣不暇缝蚕废簇。白头使我忧家事， 还如夜里烧残烛。当初为取傍人语，岂道如今自辛苦。在时纵嫌织绢迟，有丝不上邻家机。"}]}, {"id": 6, "name": "饮酒·宴游", "status": "clear", "share": 0.0376, "words": [["酒", 0.02171], ["歌", 0.02113], ["花", 0.01502], ["人", 0.01422], ["醉", 0.0132], ["来", 0.01273], ["春", 0.01155], ["君", 0.01148], ["日", 0.01133], ["上", 0.01032]], "poems": [{"title": "岳州守岁二首 一", "author": "张说", "prob": 0.8688, "text": "夜风吹醉舞，庭户对酣歌。愁逐前年少，欢迎今岁多。"}, {"title": "酬王十八见招", "author": "武元衡", "prob": 0.8383, "text": "王昌家直在城东，落尽庭花昨夜风。高兴不辞千日醉，随君走马向新丰。"}]}, {"id": 7, "name": "江行·水路", "status": "clear", "share": 0.0616, "words": [["江", 0.02929], ["水", 0.02314], ["舟", 0.01331], ["山", 0.01329], ["风", 0.01272], ["云", 0.01141], ["波", 0.01025], ["南", 0.0094], ["月", 0.00915], ["流", 0.00891]], "poems": [{"title": "送人往长沙", "author": "齐己", "prob": 0.9049, "text": "荆门归路指湖南，千里风帆兴可谙。好听鹧鸪啼雨处，木兰舟晚泊春潭。"}, {"title": "南湖", "author": "温庭筠", "prob": 0.8823, "text": "湖上微风入槛凉，翻翻菱荇满回塘。野船著岸偎春草， 水鸟带波飞夕阳。芦叶有声疑雾雨，浪花无际似潇湘。飘然篷艇东归客，尽日相看忆楚乡。"}]}, {"id": 8, "name": "骚体·赋体（兮）", "status": "partial", "share": 0.0432, "words": [["不", 0.03831], ["之", 0.02258], ["有", 0.01843], ["我", 0.01648], ["为", 0.01606], ["兮", 0.01545], ["人", 0.01468], ["何", 0.01314], ["如", 0.01261], ["天", 0.01218]], "poems": [{"title": "秋虫赋", "author": "罗隐", "prob": 0.8821, "text": "物之小兮，迎网而毙；物之大兮，兼网而逝。网也者， 绳其小而不绳其大。吾不知尔身之危兮，腹之馁兮，吁！"}, {"title": "二风诗乱风诗五篇至伤", "author": "元结", "prob": 0.8529, "text": "夫可伤兮？伤王乎，欲何为乎？将蠹枯矣，无人救乎？ 蠹枯及矣，不可救乎？嗟伤王！自为人君，变为人奴！ 为人君者，忘戒乎。"}]}, {"id": 9, "name": "闺阁·花间词", "status": "clear", "share": 0.0447, "words": [["花", 0.0179], ["红", 0.01634], ["玉", 0.01608], ["金", 0.01583], ["香", 0.01329], ["春", 0.00999], ["罗", 0.00934], ["不", 0.009], ["翠", 0.00846], ["女", 0.00802]], "poems": [{"title": "应天长", "author": "顾夐", "prob": 0.9032, "text": "瑟瑟罗裙金线缕，轻透鹅黄香画袴。垂交带，盘鹦鹉， 袅袅翠翘移玉步。背人匀檀注，慢转娇波偷觑。敛黛春情暗许，倚屏慵不 语。"}, {"title": "相和歌辞子夜四时歌六首冬歌二首 二", "author": "郭元振", "prob": 0.8683, "text": "帷横双翡翠，被卷两鸳鸯。婉态不自得，宛转君王床。"}]}, {"id": 10, "name": "咏史·说理", "status": "unclear", "share": 0.0584, "words": [["不", 0.01182], ["无", 0.00896], ["为", 0.00838], ["何", 0.00751], ["自", 0.00748], ["生", 0.0072], ["知", 0.00679], ["人", 0.00632], ["心", 0.00628], ["子", 0.00624]], "poems": [{"title": "晋门再吟", "author": "周昙", "prob": 0.8707, "text": "君人为理在安民，论道求贤德自新。经国远图无所问，何曾言指一何神。"}, {"title": "感事三首 一", "author": "元稹", "prob": 0.783, "text": "为国谋羊舌，从来不为身。此心长自保，终不学张陈。"}]}, {"id": 11, "name": "郊庙乐章", "status": "clear", "share": 0.0278, "words": [["德", 0.01214], ["天", 0.01112], ["神", 0.01108], ["圣", 0.00911], ["皇", 0.00844], ["明", 0.00802], ["帝", 0.00765], ["礼", 0.00759], ["乐", 0.0074], ["万", 0.0073]], "poems": [{"title": "仪坤庙乐章二首 二", "author": "薛稷", "prob": 0.924, "text": "乾道既亨，坤元以贞。肃雍攸在，辅佐斯成。外睦九族，内光一庭。克生睿哲，祚我休明。钦若徽范， 悠哉淑灵。建兹清宫，于彼上京。缩茅以献，絜秬惟馨。实受其福，斯乎亿龄。"}, {"title": "享先农乐章肃和", "author": "褚亮", "prob": 0.9142, "text": "樽彝既列，瑚簋方荐。歌工载登，币礼斯奠。肃肃享祀用颙颙缨弁。神之听之，福流寰县。"}]}, {"id": 12, "name": "游仙·道教", "status": "clear", "share": 0.0433, "words": [["天", 0.01994], ["仙", 0.01855], ["云", 0.0179], ["玉", 0.01396], ["龙", 0.01224], ["金", 0.01138], ["上", 0.01005], ["海", 0.00899], ["山", 0.00872], ["丹", 0.00859]], "poems": [{"title": "函谷关", "author": "宋之问", "prob": 0.7717, "text": "至人□□识仙风，瑞霭丹光远郁葱。灵迹才辞周柱下， 祥氛已入函关中。不从紫气台端候，何得青华观里逢。欲访乘牛求宝箓，愿随鹤驾遍瑶空。"}, {"title": "悲歌六", "author": "顾况", "prob": 0.769, "text": "轩辕黄帝初得仙，鼎湖一去三千年。周流三十六洞天， 洞中日月星辰联。骑龙驾景游八极，轩辕弓剑无人识。东海青童寄消息。"}]}, {"id": 13, "name": "离别·怀古·乡愁", "status": "clear", "share": 0.0927, "words": [["人", 0.0137], ["山", 0.01248], ["别", 0.01244], ["日", 0.01187], ["归", 0.01092], ["不", 0.01074], ["去", 0.01036], ["相", 0.00983], ["路", 0.00947], ["年", 0.00945]], "poems": [{"title": "司马相如琴台", "author": "岑参", "prob": 0.9142, "text": "相如琴台古，人去台亦空。台上寒萧条，至今多悲风。荒台汉时月，色与旧时同。"}, {"title": "东门晚望", "author": "司马扎", "prob": 0.9109, "text": "青门聊极望，何事久离群。芳草失归路，故乡空暮云。信回陵树老，梦断灞流分。兄弟正南北，鸿声堪独闻。"}]}, {"id": 14, "name": "秋景·咏物", "status": "clear", "share": 0.0479, "words": [["风", 0.0218], ["月", 0.01472], ["秋", 0.01425], ["寒", 0.01359], ["露", 0.0129], ["叶", 0.01231], ["光", 0.01213], ["清", 0.01154], ["影", 0.0093], ["雨", 0.00924]], "poems": [{"title": "秋露", "author": "雍陶", "prob": 0.8611, "text": "白露暧秋色，月明清漏中。痕沾珠箔重，点落玉盘空。竹动时惊鸟，莎寒暗滴虫。满园生永夜，渐欲与霜同。"}, {"title": "秋晨同淄川毛司马秋九咏秋萤", "author": "骆宾王", "prob": 0.8379, "text": "玉虬分静夜，金萤照晚凉。含辉疑泛月，带火怯凌霜。散彩萦虚牖，飘花绕洞房。下帷如不倦，当解惜馀光。"}]}, {"id": 15, "name": "苦吟·闲居·诗僧", "status": "clear", "share": 0.0639, "words": [["闲", 0.01663], ["诗", 0.01422], ["山", 0.01081], ["无", 0.0103], ["吟", 0.00976], ["书", 0.00961], ["相", 0.00932], ["有", 0.00923], ["不", 0.00911], ["时", 0.00877]], "poems": [{"title": "送马秀才", "author": "朱庆馀", "prob": 0.9085, "text": "清貌不识睡，见来尝苦吟。风尘归省日，江海寄家心。与鹤期前岛，随僧过远林。相于竟何事，无语与知音。"}, {"title": "戏题松树", "author": "皎然", "prob": 0.8733, "text": "为爱松声听不足，每逢松树遂忘还。翛然此外更何事，笑向闲云似我闲。"}]}, {"id": 16, "name": "应制·朝廷", "status": "clear", "share": 0.06, "words": [["朝", 0.00858], ["天", 0.00792], ["金", 0.0063], ["恩", 0.00622], ["门", 0.00613], ["文", 0.00613], ["日", 0.00591], ["台", 0.00588], ["重", 0.00578], ["龙", 0.00568]], "poems": [{"title": "句", "author": "宗楚客", "prob": 0.8757, "text": "竹町罗千卫，兰莛降两宫。七萃銮舆动，千年瑞检开。彩旗临凤阙，翠幕绕龟津。"}, {"title": "奉和圣制答张说扈从南出雀鼠谷之作", "author": "王光庭", "prob": 0.8576, "text": "省俗恩将遍，巡方路稍回。寒随汾谷尽，春逐晋郊来。云骑传行漏，烟旄引从台。惠风初应律，和气正调梅。雅颂通宸咏，天文接曙台。灞陵桃李色，应待日华开。"}]}, {"id": 17, "name": "山林·寺院", "status": "clear", "share": 0.055, "words": [["山", 0.02521], ["石", 0.01743], ["云", 0.01572], ["松", 0.01528], ["峰", 0.01], ["泉", 0.00985], ["深", 0.00789], ["林", 0.00784], ["空", 0.00773], ["来", 0.00741]], "poems": [{"title": "杪秋南山西峰题准上人兰若", "author": "钱起", "prob": 0.8893, "text": "向山看霁色，步步豁幽性。返照乱流明，寒空千嶂净。石门有馀好，霞残月欲映。上诣远公庐，孤峰悬一径。云里隔窗火，松下闻山磬。客到两忘言，猿心与禅定。"}, {"title": "寄西岳白石僧", "author": "马戴", "prob": 0.8843, "text": "挂锡中峰上，经行踏石梯。云房出定后，岳月在池西。峭壁残霞照，欹松积雪齐。年年著山屐，曾得到招提。"}]}, {"id": 18, "name": "咏物（杂）", "status": "unclear", "share": 0.0337, "words": [["鱼", 0.00672], ["如", 0.00662], ["龙", 0.00483], ["石", 0.0045], ["一", 0.00439], ["未", 0.00412], ["火", 0.00385], ["张", 0.00377], ["似", 0.00373], ["头", 0.0037]], "poems": [{"title": "咏刺猬", "author": "李贞白", "prob": 0.7375, "text": "行似针毡动，卧若栗球圆。莫欺如此大，谁敢便行拳。"}, {"title": "咏壁鱼", "author": "李远", "prob": 0.6738, "text": "鳞细粉光鲜，开书乱眼前。透窗疑漏网，落砚似流泉。潜穴河图内，吞钩乙字边。莫言鬐鬣小，食尽白蘋篇。"}]}, {"id": 19, "name": "口语·白话感慨", "status": "unclear", "share": 0.0712, "words": [["不", 0.03356], ["人", 0.02575], ["一", 0.01814], ["无", 0.01623], ["是", 0.01412], ["年", 0.01277], ["生", 0.01258], ["得", 0.0121], ["有", 0.01194], ["知", 0.01151]], "poems": [{"title": "过东都别乐天二首 二", "author": "元稹", "prob": 0.9064, "text": "自识君来三度别，这回白尽老髭须。恋君不去君须会，知得后回相见无。"}, {"title": "刺左臂膊诗", "author": "宋元素", "prob": 0.8422, "text": "昔日已前家未贫，苦将钱物结交亲。如今失路寻知己，行尽关山无一人。"}]}]}, {"id": "k20_stopwords", "label": "20 个主题", "group": "只去虚字", "desc": "去掉 33 个最常见的虚字（不 无 有 为 何 自 是 我 之 其 兮 一 得 来 去 时 等）。", "stop": 33, "k": 20, "topics": [{"id": 0, "name": "清幽·游览", "status": "partial", "share": 0.043, "words": [["清", 0.0102], ["云", 0.00981], ["林", 0.00869], ["游", 0.008], ["山", 0.00755], ["幽", 0.00708], ["风", 0.00683], ["复", 0.00652], ["望", 0.00612], ["高", 0.00608]], "poems": [{"title": "襄武馆游眺", "author": "韦应物", "prob": 0.7947, "text": "州民知礼让，讼简得遨游。高亭凭古地，山川当暮秋。是时粳稻熟，西望尽田畴。仰恩惭政拙，念劳喜岁收。澹泊风景晏，缭绕云树幽。节往情恻恻，天高思悠悠。嘉宾幸云集，芳樽始淹留。还希习池赏，聊以驻鸣驺。"}, {"title": "立夏日忆京师诸弟", "author": "韦应物", "prob": 0.7854, "text": "改序念芳辰，烦襟倦日永。夏木已成阴，公门昼恒静。长风始飘阁，叠云才吐岭。坐想离居人，还当惜徂景。"}]}, {"id": 1, "name": "田园·山居", "status": "clear", "share": 0.0487, "words": [["山", 0.01886], ["竹", 0.01228], ["闲", 0.01049], ["野", 0.0104], ["门", 0.01032], ["人", 0.00909], ["花", 0.00842], ["石", 0.00814], ["家", 0.0081], ["溪", 0.00759]], "poems": [{"title": "晚亭逐凉", "author": "白居易", "prob": 0.8508, "text": "送客出门后，移床下砌初。趁凉行绕竹，引睡卧看书。老更为官拙，慵多向事疏。松窗倚藤杖，人道似僧居。"}, {"title": "社日", "author": "王驾", "prob": 0.8345, "text": "鹅湖山下稻粱肥，豚栅鸡栖半掩扉。桑柘影斜春社散，家家扶得醉人归。"}]}, {"id": 2, "name": "边塞", "status": "clear", "share": 0.039, "words": [["马", 0.01932], ["将", 0.01366], ["军", 0.0131], ["兵", 0.0111], ["城", 0.01107], ["战", 0.00966], ["天", 0.00947], ["胡", 0.00896], ["汉", 0.00873], ["塞", 0.00835]], "poems": [{"title": "从军行五首 一", "author": "皎然", "prob": 0.8803, "text": "候骑出纷纷，元戎霍冠军。汉鞞秋聒地，羌火昼烧云。万里戈城合，三边羽檄分。乌孙驱未尽，肯顾辽阳勋。"}, {"title": "再书边事", "author": "张乔", "prob": 0.8745, "text": "万里沙西寇已平，犬羊群外筑空城。分营夜火烧云远， 校猎秋雕掠草轻。秦将力随胡马竭，蕃河流入汉家清。羌戎不识干戈老，须贺当时圣主明。"}]}, {"id": 3, "name": "离别·相思", "status": "clear", "share": 0.0568, "words": [["别", 0.02188], ["相", 0.01722], ["年", 0.01699], ["人", 0.01606], ["春", 0.01501], ["离", 0.01375], ["日", 0.01331], ["君", 0.01301], ["心", 0.01072], ["思", 0.0106]], "poems": [{"title": "杨柳枝", "author": "柳氏", "prob": 0.8913, "text": "杨柳枝，芳菲节，可恨年年赠离别。一叶随风忽报秋， 纵使君来岂堪折。"}, {"title": "司勋王郎中宅送韦九郎中往濠州", "author": "李嘉祐", "prob": 0.8351, "text": "怜尔因同舍，看书似外家。出关逢落叶，傍水见寒花。送远添秋思，将衰恋岁华。清淮倍相忆，回首莫令赊。"}]}, {"id": 4, "name": "春景·花柳", "status": "clear", "share": 0.0512, "words": [["花", 0.03452], ["春", 0.03268], ["风", 0.02373], ["柳", 0.01421], ["红", 0.01259], ["枝", 0.01244], ["香", 0.01193], ["芳", 0.01088], ["叶", 0.00956], ["日", 0.00898]], "poems": [{"title": "山亭夏日", "author": "高骈", "prob": 0.8681, "text": "绿树阴浓夏日长，楼台倒影入池塘。水精帘动微风起，满架蔷薇一院香。"}, {"title": "奉和圣制立春日侍宴内殿出剪彩花应制", "author": "赵彦昭", "prob": 0.8345, "text": "剪彩迎初候，攀条故写真。花随红意发，叶就绿情新。嫩色惊衔燕，轻香误采人。应为熏风拂，能令芳树春。"}]}, {"id": 5, "name": "山水·奇景", "status": "clear", "share": 0.0451, "words": [["云", 0.01498], ["石", 0.01379], ["山", 0.01205], ["天", 0.01077], ["水", 0.00862], ["龙", 0.00771], ["风", 0.00732], ["光", 0.00683], ["千", 0.00669], ["青", 0.00666]], "poems": [{"title": "题喷玉泉", "author": "白居易", "prob": 0.8108, "text": "泉喷声如玉，潭澄色似空。练垂青嶂上，珠泻绿盆中。溜滴三秋雨，寒生六月风。何时此岩下，来作濯缨翁。"}, {"title": "题剑门", "author": "李德裕", "prob": 0.8049, "text": "奇峰百仞悬，清眺出岚烟。迥若戈回日，高疑剑倚天。参差霞壁耸，合沓翠屏连。想是三刀梦，森然在目前。"}]}, {"id": 6, "name": "闺阁·花间词", "status": "clear", "share": 0.0477, "words": [["金", 0.01788], ["玉", 0.01631], ["花", 0.01518], ["红", 0.01469], ["香", 0.01089], ["罗", 0.00995], ["女", 0.00923], ["双", 0.00822], ["人", 0.00782], ["翠", 0.00732]], "poems": [{"title": "应天长", "author": "顾夐", "prob": 0.9213, "text": "瑟瑟罗裙金线缕，轻透鹅黄香画袴。垂交带，盘鹦鹉， 袅袅翠翘移玉步。背人匀檀注，慢转娇波偷觑。敛黛春情暗许，倚屏慵不 语。"}, {"title": "踏歌词二首 一", "author": "崔液", "prob": 0.8484, "text": "彩女迎金屋，仙姬出画堂。鸳鸯裁锦袖，翡翠贴花黄。歌响舞分行，艳色动流光。"}]}, {"id": 7, "name": "登临·边愁", "status": "clear", "share": 0.04, "words": [["山", 0.01798], ["人", 0.01553], ["水", 0.01367], ["风", 0.01348], ["古", 0.01328], ["空", 0.01273], ["秋", 0.01229], ["日", 0.01174], ["苍", 0.01073], ["草", 0.01071]], "poems": [{"title": "杂曲歌辞入破第四", "author": "佚名", "prob": 0.9002, "text": "日晚笳声咽戍楼，陇云漫漫水东流。行人万里向西去，满目关山空恨愁。"}, {"title": "从军六首 三", "author": "刘长卿", "prob": 0.8967, "text": "倚剑白日暮，望乡登戍楼。北风吹羌笛，此夜关山愁。回首不无意，滹河空自流。"}]}, {"id": 8, "name": "寓言·讽喻", "status": "clear", "share": 0.0537, "words": [["人", 0.00861], ["天", 0.00793], ["生", 0.00655], ["子", 0.00643], ["中", 0.00527], ["大", 0.00519], ["尔", 0.00515], ["食", 0.00511], ["死", 0.00473], ["下", 0.00457]], "poems": [{"title": "田野狐兔行", "author": "元稹", "prob": 0.8961, "text": "种豆耘锄，种禾沟甽。禾苗豆甲，狐榾兔翦。割鹄喂鹰， 烹麟啖犬。鹰怕兔毫，犬被狐引。狐兔相须，鹰犬相尽。日暗天寒，禾稀豆损。鹰犬就烹，狐兔俱哂。"}, {"title": "相和歌辞当来日大难", "author": "元稹", "prob": 0.8837, "text": "当来日大难行，前有坂，后有坑，大梁侧，小梁倾。两轴相绞，两轮相撑。大牛竖，小牛横。乌啄牛背， 足跌力狞。当来日大难行，太行虽险，险可使平。轮轴自挠，牵制不停。泥潦渐久，荆棘旋生。行必不得，不如不行。"}]}, {"id": 9, "name": "议论·说理", "status": "partial", "share": 0.07, "words": [["人", 0.01729], ["心", 0.01352], ["生", 0.01263], ["君", 0.01259], ["子", 0.00986], ["与", 0.00958], ["言", 0.00892], ["非", 0.00814], ["岂", 0.00745], ["道", 0.00689]], "poems": [{"title": "赋得行不由径", "author": "王炎", "prob": 0.8221, "text": "邪径趋时捷，端心恶此名。长衢贵高步，大路自规行。且虑萦纡僻，将求坦荡情。讵同流俗好，方保立身贞。远迹如违险，修仁在履平。始知夫子道，从此得坚诚。"}, {"title": "高士咏项橐", "author": "吴筠", "prob": 0.7959, "text": "太项冥虚极，微远不可究。禀量合太初，返形寄童幼。孔父惭至理，颜生赖真授。泛然同万流，无迹世莫觏。"}]}, {"id": 10, "name": "秋夜", "status": "clear", "share": 0.0495, "words": [["夜", 0.02988], ["月", 0.02864], ["秋", 0.02226], ["风", 0.01948], ["声", 0.0187], ["寒", 0.01847], ["清", 0.01232], ["明", 0.01197], ["雨", 0.00931], ["露", 0.009]], "poems": [{"title": "闻虫", "author": "白居易", "prob": 0.8943, "text": "暗虫唧唧夜绵绵，况是秋阴欲雨天。犹恐愁人暂得睡，声声移近卧床前。"}, {"title": "宿青阳驿", "author": "武元衡", "prob": 0.8682, "text": "空山摇落三秋暮，萤过疏帘月露团。寂寞银灯愁不寐，萧萧风竹夜窗寒。"}]}, {"id": 11, "name": "饮酒·宴游", "status": "clear", "share": 0.0338, "words": [["酒", 0.02806], ["醉", 0.0152], ["歌", 0.01245], ["清", 0.01184], ["风", 0.01183], ["杯", 0.0111], ["客", 0.00929], ["日", 0.00919], ["开", 0.00883], ["琴", 0.00849]], "poems": [{"title": "喜裴涛使君携诗见访，醉中戏赠", "author": "白居易", "prob": 0.7858, "text": "忽闻扣户醉吟声，不觉停杯倒屣迎。共放诗狂同酒癖，与君别是一亲情。"}, {"title": "夏日与崔二十一同集卫明府宅（一作宴卫明府宅遇北使）", "author": "孟浩然", "prob": 0.7438, "text": "言避一时暑，池亭五月开。喜逢金马客，同饮玉人杯。舞鹤乘轩至，游鱼拥钓来。座中殊未起，箫管莫相催。"}]}, {"id": 12, "name": "禅寺·僧侣", "status": "clear", "share": 0.0474, "words": [["山", 0.01978], ["云", 0.01392], ["心", 0.01318], ["松", 0.01235], ["僧", 0.01095], ["石", 0.01004], ["空", 0.00981], ["禅", 0.00943], ["中", 0.00919], ["人", 0.00918]], "poems": [{"title": "和西蜀可准大师远寄之什", "author": "齐己", "prob": 0.863, "text": "莫知何路去追攀，空想人间出世间。杜口已同居士室， 传心休问祖师山。禅中不住方为定，说处无生始是闲。珍重希音远相寄，乱峰西望叠孱颜。"}, {"title": "题云际南峰眼上人读经堂（眼公不下此堂十五年矣）", "author": "岑参", "prob": 0.8578, "text": "结宇题三藏，焚香老一峰。云间独坐卧，只是对山松。"}]}, {"id": 13, "name": "郊庙乐章", "status": "clear", "share": 0.0366, "words": [["天", 0.01322], ["德", 0.01139], ["神", 0.00958], ["圣", 0.00904], ["明", 0.00742], ["皇", 0.0073], ["万", 0.00707], ["帝", 0.00696], ["大", 0.00694], ["礼", 0.00692]], "poems": [{"title": "梁郊祀乐章庆和", "author": "赵光逢", "prob": 0.9355, "text": "就阳位，升圜丘。佩双玉，御大裘。膺天命，拥神休。万灵感，百禄遒。秉黄钺，建朱旗。震八表，清二仪。帝业显，王道夷。受景命，启皇基。开九门，怀百神。通肸蚃，接氤氲。明粢荐，广乐陈。奠嘉璧，燎芳薪。膺宝图，执左契。德应天，圣飨帝。荐表衷，荷灵惠。寿万年，祚百世。惟德动天，有感必通。秉兹一德，禋于六宗。钦夤宝命，恭肃礼容。来顾来享，永穆皇风。天惟佑德，辟乃奉天。交感斯在，昭事罔愆。岁功已就，王道无偏。于焉报本。是用告虔。"}, {"title": "郊庙歌辞梁郊祀乐章庆和", "author": "赵光逢", "prob": 0.9163, "text": "就阳位，升圆丘。佩双玉，御大裘。膺天命，拥神休。万灵感，百禄遒。秉黄钺，建朱旗。震八表，清二仪。帝业显，王道夷。受景命，启皇基。开九门，怀百神。通肸蚃，接氤氲。明粢荐，广乐陈。奠嘉璧，燎芳薪。膺宝图，执左契。德应天，圣飨帝。荐表衷，荷灵惠。寿万年，祚百世。惟德动天，有感必通。秉兹一德，禋于六宗。钦夤宝命，恭肃礼容。来顾来享，永穆皇风。天惟佑德，辟乃奉天。交感斯在，昭事罔愆。岁功已就，王道无偏。于焉报本，是用告虔。"}]}, {"id": 14, "name": "归思·归鸟", "status": "clear", "share": 0.0368, "words": [["归", 0.03175], ["飞", 0.02358], ["山", 0.02206], ["云", 0.02189], ["衣", 0.01646], ["人", 0.0121], ["日", 0.01145], ["稀", 0.01141], ["路", 0.01099], ["南", 0.01045]], "poems": [{"title": "落日怅望", "author": "马戴", "prob": 0.8113, "text": "孤云与归鸟，千里片时间。念我一何滞，辞家久未还。微阳下乔木，远色隐秋山。临水不敢照，恐惊平昔颜。"}, {"title": "江南送李卿", "author": "贾至", "prob": 0.8071, "text": "双鹤南飞度楚山，楚南相见忆秦关。愿值回风吹羽翼，早随阳雁及春还。"}]}, {"id": 15, "name": "江行·水路", "status": "clear", "share": 0.0564, "words": [["江", 0.03135], ["水", 0.02462], ["舟", 0.01576], ["风", 0.01381], ["山", 0.01177], ["波", 0.01118], ["流", 0.01016], ["云", 0.00948], ["月", 0.00935], ["秋", 0.00922]], "poems": [{"title": "宿范浦", "author": "崔国辅", "prob": 0.9262, "text": "月暗潮又落，西陵渡暂停。村烟和海雾，舟火乱江星。路转定山绕，塘连范浦横。鸱夷近何去，空山临沧溟。"}, {"title": "春日南游寄浙东许同年", "author": "李频", "prob": 0.8987, "text": "孤帆处处宿，不问是谁家。南国平芜远，东风细雨斜。旅怀多寄酒，寒意欲留花。更想前途去，茫茫沧海涯。"}]}, {"id": 16, "name": "叹老·闲游", "status": "clear", "share": 0.0694, "words": [["人", 0.01991], ["年", 0.0169], ["事", 0.01234], ["身", 0.01224], ["多", 0.01123], ["生", 0.01013], ["老", 0.01006], ["闲", 0.00957], ["日", 0.00931], ["须", 0.0092]], "poems": [{"title": "闲游", "author": "白居易", "prob": 0.8887, "text": "欲笑随情酒逐身，此身虽老未辜春。春来点检闲游数，犹自多于年少人。"}, {"title": "问韦山人山甫", "author": "白居易", "prob": 0.8842, "text": "身名身事两蹉跎，试就先生问若何。从此神仙学得否，白须虽有未为多。"}]}, {"id": 17, "name": "泛义字（人 年 日）", "status": "unclear", "share": 0.0579, "words": [["人", 0.02659], ["年", 0.01836], ["日", 0.01584], ["上", 0.01406], ["里", 0.01285], ["家", 0.0126], ["春", 0.01228], ["城", 0.01176], ["马", 0.01162], ["东", 0.01126]], "poems": [{"title": "送杜元颖", "author": "元稹", "prob": 0.8647, "text": "江上五年同送客，与君长羡北归人。今朝又送君先去，千里洛阳城里尘。"}, {"title": "临都驿答梦得六言二首 一", "author": "白居易", "prob": 0.8432, "text": "扬子津头月下，临都驿里灯前。昨日老于前日，去年春似今年。"}]}, {"id": 18, "name": "文士·仕途", "status": "clear", "share": 0.0638, "words": [["书", 0.01269], ["公", 0.00904], ["名", 0.00861], ["文", 0.00847], ["诗", 0.00822], ["才", 0.00741], ["官", 0.00672], ["门", 0.00641], ["子", 0.00619], ["君", 0.00544]], "poems": [{"title": "示门生马侍郎胤孙", "author": "裴皞", "prob": 0.8022, "text": "宦途最重是文衡，天与愚夫著盛名。三主礼闱年八十，门生门下见门生。"}, {"title": "答门生王涣李德邻赵光胤王拯长句", "author": "孙偓", "prob": 0.8012, "text": "谬持文柄得时贤，粉署清华次第迁。昔岁策名皆健笔， 今朝称职并同年。各怀器业宁推让，俱上青霄肯后先。何事老夫犹赋咏，欲将酬和永留传。"}]}, {"id": 19, "name": "游仙·宫廷", "status": "clear", "share": 0.0531, "words": [["天", 0.01816], ["玉", 0.01697], ["金", 0.01559], ["仙", 0.01547], ["云", 0.0128], ["龙", 0.01192], ["上", 0.01065], ["凤", 0.01043], ["宫", 0.01041], ["日", 0.00891]], "poems": [{"title": "幸白鹿观应制", "author": "徐彦伯", "prob": 0.8841, "text": "凤舆乘八景，龟箓向三仙。日月移平地，云霞缀小天。金童擎紫药，玉女献青莲。花洞留宸赏，还旗绕夕烟。"}, {"title": "宫词五首 一", "author": "顾况", "prob": 0.8395, "text": "禁柳烟中闻晓乌，风吹玉漏尽铜壶。内官先向蓬莱殿，金合开香泻御炉。"}]}]}, {"id": "k10_clean", "label": "10 个主题", "group": "去停用字", "desc": "用 stopwords.txt 去掉 164 个字：虚词 + 泛义高频字（人 年 日 时 中 上 下 等）。", "stop": 164, "k": 10, "topics": [{"id": 0, "name": "秋夜·咏物", "status": "clear", "share": 0.0817, "words": [["月", 0.01895], ["风", 0.01844], ["夜", 0.01781], ["秋", 0.0144], ["清", 0.01346], ["寒", 0.01319], ["声", 0.01087], ["露", 0.0086], ["明", 0.00859], ["空", 0.00823]], "poems": [{"title": "清风戒寒", "author": "无名氏", "prob": 0.9705, "text": "萧飒清风至，悠然发思端。入林翻别叶，绕树败红兰。晓拂轻霜度，宵分远籁攒。稍依帘隙静，遍觉座隅寒。乍逐惊蓬振，偏催急漏残。遥知洞庭水，此夕起波澜。"}, {"title": "月夜梧桐叶上见寒露", "author": "戴察", "prob": 0.9689, "text": "萧疏桐叶上，月白露初团。滴沥清光满，荧煌素彩寒。风摇愁玉坠，枝动惜珠干。气冷疑秋晚，声微觉夜阑。凝空流欲遍，润物净宜看。莫厌窥临倦，将晞聚更难。"}]}, {"id": 1, "name": "游仙·道教", "status": "clear", "share": 0.0753, "words": [["天", 0.01773], ["云", 0.01226], ["仙", 0.01071], ["龙", 0.01042], ["金", 0.00892], ["山", 0.00876], ["玉", 0.00872], ["神", 0.00837], ["生", 0.00752], ["千", 0.0072]], "poems": [{"title": "古镜", "author": "若虚", "prob": 0.9315, "text": "轩后红炉独铸成，藓痕磨落月轮呈。万般物象皆能鉴， 一个人心不可明。匣内乍开鸾凤活，台前高挂鬼神惊。百年肝胆堪将比，只怕看频素发生。"}, {"title": "渔父词一十八首神效", "author": "吕岩", "prob": 0.9243, "text": "恍惚擒来得自然，偷他造化在其间。神鼎内，火烹煎，尽历阴阳结作丹。"}]}, {"id": 2, "name": "送别·羁旅", "status": "clear", "share": 0.1364, "words": [["山", 0.01559], ["别", 0.01287], ["归", 0.0125], ["春", 0.01129], ["风", 0.01093], ["路", 0.01048], ["云", 0.01033], ["君", 0.0102], ["江", 0.00986], ["水", 0.00943]], "poems": [{"title": "冬日送颜延之明府抚州觐叔父", "author": "皎然", "prob": 0.9689, "text": "临川千里别，惆怅上津桥。日暮人归尽，山空雪未消。乡云心渺渺，楚水路遥遥。林下方欢会，山中独寂寥。天寒惊断雁，江信望回潮。岁晚流芳歇，思君在此宵。"}, {"title": "东门晚望", "author": "司马扎", "prob": 0.9555, "text": "青门聊极望，何事久离群。芳草失归路，故乡空暮云。信回陵树老，梦断灞流分。兄弟正南北，鸿声堪独闻。"}]}, {"id": 3, "name": "德·道（郊庙 + 说理）", "status": "partial", "share": 0.1047, "words": [["心", 0.00671], ["子", 0.00668], ["生", 0.0057], ["天", 0.00551], ["然", 0.00452], ["大", 0.00439], ["道", 0.00433], ["怀", 0.00389], ["明", 0.0038], ["神", 0.00367]], "poems": [{"title": "唐明堂乐章宫音", "author": "武则天", "prob": 0.9547, "text": "履艮包群望，居中冠百灵。万方资广运，庶品荷财成。神功谅匪测，盛德实难名。藻奠申诚敬，恭祀表惟馨。"}, {"title": "唐大飨拜洛乐章拜洛", "author": "武则天", "prob": 0.9508, "text": "菲躬承睿顾，薄德忝坤仪。乾乾遵后命，翼翼奉先规。抚俗勤虽切，还淳化尚亏。未能弘至道，何以契明祇。"}]}, {"id": 4, "name": "江行·水路", "status": "clear", "share": 0.0817, "words": [["江", 0.02459], ["水", 0.02265], ["风", 0.01446], ["山", 0.01355], ["舟", 0.01182], ["云", 0.00956], ["波", 0.00892], ["月", 0.00875], ["雨", 0.00776], ["秋", 0.00769]], "poems": [{"title": "送客江行", "author": "许浑", "prob": 0.9533, "text": "萧萧芦荻花，郢客独辞家。远棹依山响，危樯转浦斜。不寒澄浅石，潮落涨虚沙。莫与征徒望，乡园去渐赊。"}, {"title": "宿洞庭", "author": "李端", "prob": 0.952, "text": "白水连天暮，洪波带日流。风高云梦夕，月满洞庭秋。沙上渔人火，烟中贾客舟。西园与南浦，万里共悠悠。"}]}, {"id": 5, "name": "应制·宫廷", "status": "clear", "share": 0.097, "words": [["天", 0.01169], ["云", 0.00758], ["玉", 0.00738], ["朝", 0.00725], ["金", 0.00714], ["龙", 0.00674], ["宫", 0.00667], ["三", 0.00654], ["文", 0.00596], ["清", 0.00575]], "poems": [{"title": "奉和圣制送张说上集贤学士赐宴", "author": "李暠", "prob": 0.9665, "text": "偃武尧风接，崇文汉道恢。集贤更内殿，清选自中台。佐命留侯业，词华博物才。天厨千品降，御酒百壶催。鹓鹭方成列，神仙喜暂陪。复欣同拜首，叨此颂良哉。"}, {"title": "奉和九月九日登慈恩寺浮图应制", "author": "崔日用", "prob": 0.9558, "text": "紫宸欢每洽，绀殿法初隆。菊泛延龄酒，兰吹解愠风。咸英调正乐，香梵遍秋空。临幸浮天瑞，重阳日再中。"}]}, {"id": 6, "name": "春花·艳情", "status": "clear", "share": 0.1073, "words": [["花", 0.02635], ["春", 0.02052], ["红", 0.01406], ["风", 0.01222], ["香", 0.01072], ["金", 0.01061], ["玉", 0.00977], ["柳", 0.00657], ["枝", 0.00605], ["楼", 0.00562]], "poems": [{"title": "女冠子", "author": "欧阳炯", "prob": 0.9756, "text": "薄妆桃脸，满面纵横花靥。艳情多，绶带盘金缕， 轻裙透碧罗。含羞眉乍敛，微语笑相和。不会频偷眼，意如何？ 秋宵秋月，一朵荷花初发。照前池，摇曳熏香夜， 婵娟对镜时。蕊中千点泪，心里万条丝。恰似轻盈女，好风姿。"}, {"title": "浣溪沙", "author": "欧阳炯", "prob": 0.9726, "text": "落絮残莺半日天，玉柔花醉只思眠，惹窗映竹满炉烟。独掩画屏愁不语，斜欹瑶枕髻鬟偏，此时心在阿谁边？ 天碧罗衣拂地垂，美人初著更相宜，宛风如舞透香肌。独坐含嚬吹凤竹，园中缓步折花枝，有情无力泥人时。相见休言有泪珠，酒阑重得叙欢娱，凤屏鸳枕宿金铺。兰麝细香闻喘息，绮罗纤缕见肌肤，此时还恨薄情无。"}]}, {"id": 7, "name": "闲居·叹老·饮酒", "status": "clear", "share": 0.1329, "words": [["君", 0.01131], ["酒", 0.01119], ["生", 0.01061], ["身", 0.00994], ["老", 0.00895], ["家", 0.00781], ["心", 0.00739], ["诗", 0.00733], ["书", 0.00718], ["白", 0.00695]], "poems": [{"title": "闲居贫活计", "author": "白居易", "prob": 0.9686, "text": "冠盖闲居少，箪瓢陋巷深。称家开户牖，量力置园林。俭薄身都惯，营为力不任。饥烹一斤肉，暖卧两重衾。尊有陶潜酒，囊无陆贾金。莫嫌贫活计，更富即劳心。"}, {"title": "自伤", "author": "王建", "prob": 0.9618, "text": "衰门海内几多人，满眼公卿总不亲。四授官资元七品， 再经婚娶尚单身。图书亦为频移尽，兄弟还因数散贫。独自在家长似客，黄昏哭向野田春。"}]}, {"id": 8, "name": "边塞", "status": "clear", "share": 0.0687, "words": [["马", 0.01532], ["天", 0.0103], ["城", 0.00893], ["军", 0.00877], ["兵", 0.00773], ["胡", 0.00768], ["风", 0.007], ["边", 0.00698], ["战", 0.0067], ["万", 0.00669]], "poems": [{"title": "送族弟绾从军安西", "author": "李白", "prob": 0.9629, "text": "汉家兵马乘北风，鼓行而西破犬戎。尔随汉将出门去， 剪虏若草收奇功。君王按剑望边色，旄头已落胡天空。匈奴系颈数应尽，明年应入蒲萄宫。"}, {"title": "关山曲二首 一", "author": "马戴", "prob": 0.9529, "text": "金甲耀兜鍪，黄金拂紫骝。叛羌旗下戮，陷壁夜中收。霜霰戎衣月，关河碛气秋。箭疮殊未合，更遣击兰州。"}]}, {"id": 9, "name": "山林·寺院·隐逸", "status": "clear", "share": 0.1144, "words": [["山", 0.02307], ["云", 0.01341], ["石", 0.01112], ["松", 0.01063], ["闲", 0.00927], ["林", 0.00895], ["深", 0.00788], ["水", 0.00758], ["花", 0.00749], ["竹", 0.00731]], "poems": [{"title": "七泉寺上方", "author": "王建", "prob": 0.9809, "text": "长年好名山，本性今得从。回看尘迹遥，稍见麋鹿踪。老僧云中居，石门青重重。阴泉养成龟，古壁飞却龙。扫石礼新经，悬幡上高峰。日夕猿鸟合，觅食听山钟。将火寻远泉，煮茶傍寒松。晚随收药人，便宿南涧中。晨起冲露行，湿花枝茸茸。归依向禅师，愿作香火翁。"}, {"title": "方干隐居", "author": "李山甫", "prob": 0.9662, "text": "咬咬嘎嘎水禽声，露洗松阴满院清。溪畔印沙多鹤迹， 槛前题竹有僧名。问人远岫千重意，对客闲云一片情。早晚尘埃得休去，且将书剑事先生。"}]}]}, {"id": "k20_clean", "label": "20 个主题", "group": "去停用字", "desc": "用 stopwords.txt 去掉 164 个字：虚词 + 泛义高频字（人 年 日 时 中 上 下 等）。", "stop": 164, "k": 20, "topics": [{"id": 0, "name": "夜·愁思·梦", "status": "clear", "share": 0.057, "words": [["月", 0.03296], ["夜", 0.03277], ["风", 0.02411], ["秋", 0.02214], ["声", 0.01948], ["寒", 0.01793], ["明", 0.01483], ["清", 0.01355], ["落", 0.01039], ["空", 0.0099]], "poems": [{"title": "感梦", "author": "元稹", "prob": 0.8774, "text": "行吟坐叹知何极，影绝魂销动隔年。今夜商山馆中梦，分明同在后堂前。"}, {"title": "惆怅诗九首 二", "author": "顾甄远", "prob": 0.8768, "text": "禁漏声稀蟾魄冷，纱厨筠簟波光净。独坐愁吟暗断魂，满窗风动芭蕉影。"}]}, {"id": 1, "name": "宫宴·应制", "status": "clear", "share": 0.0493, "words": [["玉", 0.01533], ["天", 0.0128], ["金", 0.01266], ["宫", 0.01185], ["凤", 0.01096], ["开", 0.01066], ["歌", 0.01027], ["台", 0.01017], ["回", 0.00935], ["龙", 0.00899]], "poems": [{"title": "奉和圣制人日清晖阁宴群臣遇雪应制", "author": "苏颋", "prob": 0.8987, "text": "楼观空烟里，初年瑞雪过。苑花齐玉树，池水作银河。七日祥图启，千春御赏多。轻飞传彩胜，天上奉薰歌。"}, {"title": "晨光动翠华", "author": "无名氏", "prob": 0.8816, "text": "早朝开紫殿，佳气逐清晨。北阙华旌在，东方曙景新。影连香雾合，光媚庆云频。鸟羽飘初定，龙文照转真。直疑冠佩入，长爱冕旒亲。摇动祥云里，朝朝映侍臣。"}]}, {"id": 2, "name": "庭园草木·咏物", "status": "clear", "share": 0.037, "words": [["叶", 0.01685], ["风", 0.01679], ["池", 0.01192], ["花", 0.01163], ["雨", 0.01151], ["竹", 0.01097], ["露", 0.01069], ["树", 0.0102], ["秋", 0.00996], ["枝", 0.00973]], "poems": [{"title": "东峰亭各赋一物得临轩桂", "author": "郭澹", "prob": 0.8742, "text": "青青芳桂树，幽阴在庭轩。向日阴还合，从风叶乍翻。共看霜雪后，终不变凉暄。"}, {"title": "对新篁", "author": "韦应物", "prob": 0.8604, "text": "新绿苞初解，嫩气笋犹香。含露渐舒叶，抽丛稍自长。清晨止亭下，独爱此幽篁。"}]}, {"id": 3, "name": "闺阁·花间词", "status": "clear", "share": 0.045, "words": [["金", 0.01822], ["玉", 0.01697], ["红", 0.01656], ["花", 0.01552], ["香", 0.01357], ["罗", 0.01106], ["双", 0.00921], ["女", 0.00881], ["翠", 0.00852], ["珠", 0.00694]], "poems": [{"title": "应天长", "author": "顾夐", "prob": 0.9445, "text": "瑟瑟罗裙金线缕，轻透鹅黄香画袴。垂交带，盘鹦鹉， 袅袅翠翘移玉步。背人匀檀注，慢转娇波偷觑。敛黛春情暗许，倚屏慵不 语。"}, {"title": "西溪子", "author": "牛峤", "prob": 0.9104, "text": "捍拨双盘金凤，蝉鬓玉钗摇动。画堂前，人不语，弦解 语。弹到昭君怨处。翠蛾愁，不抬头。"}]}, {"id": 4, "name": "离情·相思", "status": "clear", "share": 0.0553, "words": [["君", 0.02904], ["心", 0.01714], ["生", 0.01702], ["别", 0.01192], ["长", 0.01159], ["悲", 0.01091], ["身", 0.00982], ["泪", 0.00844], ["子", 0.00844], ["行", 0.00825]], "poems": [{"title": "南阳送客", "author": "李白", "prob": 0.8723, "text": "斗酒勿为薄，寸心贵不忘。坐惜故人去，偏令游子伤。离颜怨芳草，春思结垂杨。挥手再三别，临岐空断肠。"}, {"title": "结爱", "author": "孟郊", "prob": 0.8669, "text": "心心复心心，结爱务在深。一度欲离别，千回结衣襟。结妾独守志，结君早归意。始知结衣裳，不如结心肠。坐结行亦结，结尽百年月。"}]}, {"id": 5, "name": "边塞", "status": "clear", "share": 0.0368, "words": [["马", 0.01953], ["军", 0.01532], ["兵", 0.01262], ["胡", 0.01258], ["边", 0.01253], ["城", 0.01205], ["战", 0.01154], ["塞", 0.01102], ["天", 0.01091], ["汉", 0.01042]], "poems": [{"title": "赠老将", "author": "权德舆", "prob": 0.8834, "text": "白草黄云塞上秋，曾随骠骑出并州。辘轳剑折虬须白，转战功多独不侯。"}, {"title": "塞下曲", "author": "郎士元", "prob": 0.883, "text": "宝刀塞下儿，身经百战曾百胜，壮心竟未嫖姚知。白草山头日初没，黄沙戍下悲歌发。萧条夜静边风吹， 独倚营门望秋月。"}]}, {"id": 6, "name": "田园·山居", "status": "clear", "share": 0.0374, "words": [["山", 0.01641], ["家", 0.01528], ["田", 0.01386], ["门", 0.01052], ["归", 0.01025], ["野", 0.00998], ["书", 0.00956], ["居", 0.00939], ["闲", 0.00816], ["村", 0.008]], "poems": [{"title": "赠田家翁", "author": "耿湋", "prob": 0.9209, "text": "老人迎客处，篱落稻畦间。蚕屋朝寒闭，田家昼雨闲。门闾新薙草，蹊径旧谙山。自道谁相及，邀予试往还。"}, {"title": "送韦山人归钟山所居", "author": "皇甫冉", "prob": 0.8552, "text": "逸人归路远，弟子出山迎。服药颜虽驻，耽书癖已成。柴扉度岁月，藜杖见公卿。更作儒林传，还应有姓名。"}]}, {"id": 7, "name": "怀古·城池", "status": "clear", "share": 0.0502, "words": [["山", 0.02218], ["城", 0.017], ["东", 0.01519], ["西", 0.01458], ["水", 0.01441], ["马", 0.01348], ["阳", 0.01304], ["南", 0.01183], ["千", 0.01144], ["门", 0.01132]], "poems": [{"title": "春日古道傍作", "author": "杜牧", "prob": 0.8247, "text": "万古荣华旦暮齐，楼台春尽草萋萋。君看陌上何人墓，旋化红尘送马蹄。"}, {"title": "司马相如琴台", "author": "岑参", "prob": 0.8223, "text": "相如琴台古，人去台亦空。台上寒萧条，至今多悲风。荒台汉时月，色与旧时同。"}]}, {"id": 8, "name": "议论·讽谏", "status": "clear", "share": 0.0564, "words": [["天", 0.00874], ["生", 0.00848], ["子", 0.00755], ["大", 0.0062], ["心", 0.00616], ["贤", 0.00475], ["然", 0.00471], ["难", 0.00463], ["道", 0.0046], ["古", 0.00441]], "poems": [{"title": "二风诗乱风诗五篇至荒", "author": "元结", "prob": 0.9101, "text": "国有世谟，仁信勤欤。王实惛荒，终亡此乎。焉有力恣谄惑，而不亡其国？呜呼亡王，忍为此心！ 敢正亡王，永为世箴。"}, {"title": "二风诗乱风诗五篇至惑", "author": "元结", "prob": 0.8865, "text": "贤圣为上兮，必俭约戒身，鉴察化人，所以保福也。如何 不思，荒恣是为？上下隔塞， 人神怨奰；敖恶无厌，不畏颠坠。圣贤为上兮，必用贤正，黜奸佞之臣，所以长久也。如何 反是，以为乱矣？宠邪信惑， 近佞好谀；废嫡立庶，忍为祸谟。"}]}, {"id": 9, "name": "老病·饮酒·闲适", "status": "clear", "share": 0.0648, "words": [["酒", 0.0236], ["闲", 0.01438], ["诗", 0.01382], ["醉", 0.01165], ["身", 0.01109], ["老", 0.01097], ["头", 0.01024], ["君", 0.00965], ["心", 0.00884], ["病", 0.0088]], "poems": [{"title": "除夜言怀，兼赠张常侍", "author": "白居易", "prob": 0.891, "text": "三百六旬今夜尽，六十四年明日催。不用叹身随日老， 亦须知寿逐年来。加添雪兴凭毡帐，消杀春愁付酒杯。唯恨诗成君去后，红笺纸卷为谁开。"}, {"title": "赠采药叟", "author": "施肩吾", "prob": 0.8718, "text": "老去唯将药裹行，无家无累一身轻。却教年少取书卷，小字灯前斗眼明。"}]}, {"id": 10, "name": "游仙·修道", "status": "clear", "share": 0.0415, "words": [["仙", 0.02138], ["天", 0.01735], ["生", 0.01319], ["真", 0.01272], ["云", 0.01267], ["神", 0.01141], ["道", 0.0112], ["金", 0.01088], ["玉", 0.00985], ["三", 0.00977]], "poems": [{"title": "赠毛仙翁", "author": "王起", "prob": 0.8844, "text": "冰霜肌骨称童年，羽驾何由到俗间。丹灶化金留秘诀， 仙宫嗽玉叩玄关。壶中世界青天近，洞里烟霞白日闲。若许随师去尘网，愿陪鸾鹤向三山。"}, {"title": "酬赵秀才赠新登科诸先辈", "author": "白居易", "prob": 0.8736, "text": "莫羡蓬莱鸾鹤侣，道成羽翼自生身。君看名在丹台者，尽是人间修道人。"}]}, {"id": 11, "name": "文士·仕途·赠答", "status": "clear", "share": 0.0638, "words": [["公", 0.01116], ["书", 0.01115], ["文", 0.00943], ["名", 0.0084], ["子", 0.00754], ["诗", 0.00753], ["门", 0.00718], ["官", 0.00699], ["朝", 0.00686], ["三", 0.0064]], "poems": [{"title": "寄杨八拾遗", "author": "刘禹锡", "prob": 0.8569, "text": "闻君前日独庭争，汉帝偏知白马生。忽领簿书游太学， 宁劳侍从厌承明。洛阳本自宜才子，海内而今有直声。为谢同僚老博士，范云来岁即公卿。"}, {"title": "吕八见寄郡内书怀因而戏和", "author": "刘禹锡", "prob": 0.8485, "text": "文苑振金声，循良冠百城。不知今史氏，何处列君名。"}]}, {"id": 12, "name": "春景·花柳", "status": "clear", "share": 0.0489, "words": [["花", 0.04917], ["春", 0.044], ["风", 0.02692], ["柳", 0.02005], ["红", 0.0137], ["枝", 0.01281], ["落", 0.0114], ["芳", 0.01095], ["桃", 0.01006], ["莺", 0.00896]], "poems": [{"title": "无题十首 一", "author": "唐彦谦", "prob": 0.8908, "text": "细草铺茵绿满堤，燕飞晴日正迟迟。寻芳陌上花如锦，折得东风第一枝。"}, {"title": "阳羡杂咏十九首桃溪", "author": "陆希声", "prob": 0.8862, "text": "芳草霏霏遍地齐，桃花脉脉自成溪。也知百舌多言语，任向春风尽意啼。"}]}, {"id": 13, "name": "羁旅·乡愁", "status": "clear", "share": 0.0623, "words": [["归", 0.02411], ["别", 0.01774], ["山", 0.01736], ["路", 0.01537], ["江", 0.01337], ["远", 0.01299], ["客", 0.01252], ["云", 0.01225], ["南", 0.01219], ["乡", 0.01169]], "poems": [{"title": "蓟北春怀", "author": "张籍", "prob": 0.9213, "text": "渺渺水云外，别来音信稀。因逢过江使，却寄在家衣。问路更愁远，逢人空说归。今朝蓟城北，又见塞鸿飞。"}, {"title": "送友人西上", "author": "刘长卿", "prob": 0.9137, "text": "羁心不自解，有别会沾衣。春草连天积，五陵远客归。十年经转战，几处便芳菲。想见函关路，行人去亦稀。"}]}, {"id": 14, "name": "清幽·闲适（韦应物体）", "status": "partial", "share": 0.0613, "words": [["清", 0.01221], ["云", 0.01199], ["心", 0.00946], ["高", 0.00846], ["风", 0.00845], ["然", 0.00825], ["山", 0.00819], ["幽", 0.00723], ["林", 0.00718], ["游", 0.00693]], "poems": [{"title": "立夏日忆京师诸弟", "author": "韦应物", "prob": 0.896, "text": "改序念芳辰，烦襟倦日永。夏木已成阴，公门昼恒静。长风始飘阁，叠云才吐岭。坐想离居人，还当惜徂景。"}, {"title": "善福精舍答韩司录清都观会宴见忆", "author": "韦应物", "prob": 0.8861, "text": "弱志厌众纷，抱素寄精庐。皦皦仰时彦，闷闷独为愚。之子亦辞秩，高踪罢驰驱。忽因西飞禽，赠我以琼琚。始表仙都集，复言欢乐殊。人生各有因，契阔不获俱。一来田野中，日与人事疏。水木澄秋景，逍遥清赏馀。枉驾怀前诺，引领岂斯须。无为便高翔，邈矣不可迂。"}]}, {"id": 15, "name": "山寺·禅僧", "status": "clear", "share": 0.0629, "words": [["山", 0.03185], ["云", 0.02032], ["石", 0.01825], ["松", 0.01616], ["峰", 0.01243], ["林", 0.01047], ["泉", 0.01031], ["僧", 0.01015], ["深", 0.01012], ["溪", 0.00925]], "poems": [{"title": "吊草堂禅师", "author": "李洞", "prob": 0.9025, "text": "杖屦疑师在，房关四壁蛩蛩。贮瓶经腊水，响塔隔山钟。乳鸽沿苔井，斋猿散雪峰。如何不见性，倚遍寺前松。"}, {"title": "和姚郎中题凝公院", "author": "郑巢", "prob": 0.8941, "text": "后房寒竹连，白昼坐冥然。片衲何山至，空堂几夜禅。叶侵经上字，冰结砚中泉。雪夕谁同话，悬灯古像前。"}]}, {"id": 16, "name": "乐府·民歌·俗语", "status": "partial", "share": 0.0323, "words": [["飞", 0.01115], ["天", 0.01045], ["子", 0.01034], ["头", 0.00939], ["儿", 0.00933], ["生", 0.00771], ["鸟", 0.00728], ["白", 0.00715], ["死", 0.00713], ["食", 0.00705]], "poems": [{"title": "琴曲歌辞履霜操", "author": "韩愈", "prob": 0.8855, "text": "父兮儿寒，母兮儿饥。儿罪当笞，逐儿何为。儿在中野，以宿以处。四无人声，谁与儿语。儿寒何衣，儿饥何食。儿行于野，履霜以足。母生众儿，有母怜之。独无母怜，儿宁不悲。"}, {"title": "横吹曲辞捉搦歌", "author": "张祜", "prob": 0.8247, "text": "门上关，墙上棘，窗中女子声唧唧，洛阳大道徒自直。女子心在婆舍侧，呜呜笼鸟触四隅。养男男娶妇，养女女嫁夫。阿婆六十翁七十， 不知女子长日泣，从他嫁去无悒悒。"}]}, {"id": 17, "name": "郊庙乐章", "status": "clear", "share": 0.0362, "words": [["天", 0.01483], ["德", 0.01226], ["神", 0.01173], ["圣", 0.00991], ["皇", 0.0088], ["万", 0.00851], ["明", 0.00828], ["帝", 0.00828], ["礼", 0.00803], ["乐", 0.00787]], "poems": [{"title": "梁郊祀乐章庆和", "author": "赵光逢", "prob": 0.9234, "text": "就阳位，升圜丘。佩双玉，御大裘。膺天命，拥神休。万灵感，百禄遒。秉黄钺，建朱旗。震八表，清二仪。帝业显，王道夷。受景命，启皇基。开九门，怀百神。通肸蚃，接氤氲。明粢荐，广乐陈。奠嘉璧，燎芳薪。膺宝图，执左契。德应天，圣飨帝。荐表衷，荷灵惠。寿万年，祚百世。惟德动天，有感必通。秉兹一德，禋于六宗。钦夤宝命，恭肃礼容。来顾来享，永穆皇风。天惟佑德，辟乃奉天。交感斯在，昭事罔愆。岁功已就，王道无偏。于焉报本。是用告虔。"}, {"title": "唐大飨拜洛乐章昭和", "author": "武则天", "prob": 0.9177, "text": "九玄眷命，三圣基隆。奉成先旨，明台毕功。宗祀展敬，冀表深衷。永昌帝业，式播淳风。"}]}, {"id": 18, "name": "江行·水路", "status": "clear", "share": 0.0634, "words": [["江", 0.0321], ["水", 0.02653], ["舟", 0.01534], ["山", 0.01485], ["风", 0.01387], ["云", 0.01227], ["波", 0.01198], ["月", 0.01123], ["流", 0.00956], ["南", 0.00954]], "poems": [{"title": "重过宣峰寺山房，寄灵一上人", "author": "刘长卿", "prob": 0.9254, "text": "西陵潮信满，岛屿入中流。越客依风水，相思南渡头。寒光生极浦，暮雪映沧洲。何事扬帆去，空惊海上鸥。"}, {"title": "夕次桐庐", "author": "张祜", "prob": 0.8915, "text": "百里清溪口，扁舟此去过。晚潮风势急，寒叶雨声多。戍出山头鼓，樵通竹里歌。不堪无酒夜，回首梦烟波。"}]}, {"id": 19, "name": "神物·奇想", "status": "partial", "share": 0.0381, "words": [["龙", 0.01338], ["天", 0.01047], ["光", 0.00988], ["玉", 0.00977], ["金", 0.00871], ["石", 0.00727], ["水", 0.0071], ["风", 0.00658], ["千", 0.00657], ["气", 0.00621]], "poems": [{"title": "剑化为龙", "author": "张聿", "prob": 0.7638, "text": "古剑诚难屈，精明有所从。沉埋方出狱，合会却成龙。牛斗光初歇，蜿蜒气渐浓。云涛透百丈，水府跃千重。拖尾迷莲锷，张鳞露锦容。至今沙岸下，谁得睹玄踪。"}, {"title": "大言", "author": "雍裕之", "prob": 0.7469, "text": "四溟杯渌醑，五岳髻青螺。挥汗曾成雨，画地亦成河。"}]}]}], "splits": {"原始": {"k10": "k10", "k20": "k20", "rows": [[0.357, 0.008, 0.329, 0.026, 0.019, 0.008, 0.006, 0.024, 0.021, 0.202], [0.02, 0.021, 0.165, 0.022, 0.023, 0.047, 0.65, 0.009, 0.011, 0.031], [0.118, 0.004, 0.188, 0.068, 0.035, 0.006, 0.01, 0.055, 0.47, 0.046], [0.023, 0.442, 0.118, 0.076, 0.016, 0.043, 0.007, 0.125, 0.134, 0.016], [0.196, 0.014, 0.392, 0.085, 0.019, 0.013, 0.013, 0.203, 0.019, 0.046], [0.025, 0.055, 0.124, 0.019, 0.361, 0.016, 0.02, 0.05, 0.014, 0.315], [0.298, 0.007, 0.292, 0.064, 0.047, 0.067, 0.026, 0.024, 0.04, 0.136], [0.034, 0.01, 0.122, 0.701, 0.01, 0.01, 0.013, 0.043, 0.024, 0.032], [0.011, 0.141, 0.021, 0.012, 0.679, 0.013, 0.072, 0.013, 0.021, 0.015], [0.821, 0.003, 0.037, 0.019, 0.02, 0.01, 0.008, 0.008, 0.062, 0.013], [0.012, 0.356, 0.092, 0.017, 0.206, 0.067, 0.067, 0.022, 0.017, 0.144], [0.0, 0.044, 0.009, 0.004, 0.016, 0.897, 0.016, 0.003, 0.007, 0.004], [0.065, 0.027, 0.062, 0.045, 0.074, 0.241, 0.082, 0.208, 0.125, 0.073], [0.014, 0.01, 0.677, 0.108, 0.038, 0.013, 0.019, 0.034, 0.038, 0.049], [0.121, 0.008, 0.077, 0.048, 0.008, 0.029, 0.009, 0.122, 0.537, 0.041], [0.012, 0.016, 0.108, 0.031, 0.012, 0.011, 0.004, 0.18, 0.04, 0.585], [0.053, 0.026, 0.129, 0.022, 0.017, 0.503, 0.043, 0.032, 0.043, 0.132], [0.01, 0.007, 0.042, 0.018, 0.005, 0.007, 0.004, 0.809, 0.041, 0.058], [0.106, 0.088, 0.014, 0.027, 0.07, 0.006, 0.196, 0.138, 0.045, 0.311], [0.043, 0.006, 0.125, 0.028, 0.184, 0.016, 0.03, 0.069, 0.035, 0.465]], "counts": [2603, 1907, 1258, 1857, 2059, 1532, 1518, 3353, 1125, 2070, 1982, 1124, 1542, 5727, 2245, 3605, 2679, 3223, 785, 3532]}, "去停用字": {"k10": "k10_clean", "k20": "k20_clean", "rows": [[0.627, 0.01, 0.139, 0.004, 0.034, 0.013, 0.055, 0.026, 0.016, 0.077], [0.094, 0.053, 0.072, 0.007, 0.031, 0.525, 0.171, 0.015, 0.012, 0.02], [0.28, 0.021, 0.062, 0.027, 0.074, 0.031, 0.142, 0.054, 0.008, 0.301], [0.039, 0.025, 0.039, 0.005, 0.013, 0.018, 0.812, 0.028, 0.013, 0.008], [0.04, 0.027, 0.422, 0.078, 0.01, 0.026, 0.07, 0.267, 0.028, 0.031], [0.008, 0.013, 0.096, 0.014, 0.019, 0.055, 0.012, 0.022, 0.757, 0.005], [0.011, 0.008, 0.08, 0.035, 0.091, 0.013, 0.024, 0.446, 0.012, 0.281], [0.009, 0.047, 0.486, 0.025, 0.073, 0.088, 0.068, 0.064, 0.086, 0.054], [0.01, 0.06, 0.03, 0.568, 0.017, 0.02, 0.013, 0.156, 0.108, 0.017], [0.026, 0.014, 0.087, 0.01, 0.03, 0.017, 0.062, 0.634, 0.012, 0.108], [0.016, 0.439, 0.051, 0.031, 0.011, 0.085, 0.042, 0.138, 0.011, 0.176], [0.009, 0.013, 0.091, 0.086, 0.03, 0.396, 0.028, 0.242, 0.054, 0.05], [0.039, 0.004, 0.153, 0.003, 0.05, 0.018, 0.636, 0.039, 0.008, 0.049], [0.021, 0.008, 0.689, 0.006, 0.079, 0.023, 0.035, 0.06, 0.02, 0.06], [0.148, 0.076, 0.12, 0.277, 0.086, 0.077, 0.022, 0.041, 0.009, 0.145], [0.011, 0.044, 0.043, 0.004, 0.028, 0.012, 0.011, 0.02, 0.007, 0.821], [0.032, 0.1, 0.028, 0.078, 0.031, 0.007, 0.089, 0.316, 0.281, 0.038], [0.01, 0.021, 0.005, 0.414, 0.003, 0.502, 0.004, 0.012, 0.019, 0.009], [0.019, 0.019, 0.158, 0.007, 0.616, 0.019, 0.04, 0.037, 0.014, 0.07], [0.102, 0.429, 0.02, 0.044, 0.066, 0.044, 0.081, 0.066, 0.059, 0.088]], "counts": [2986, 2153, 1640, 2079, 2299, 1754, 1569, 2229, 1621, 3452, 1657, 2822, 2719, 3813, 2115, 3764, 844, 1447, 3605, 1158]}}, "stopwords": [{"label": "否定、有无", "words": ["不", "无", "有", "非", "莫", "勿", "未", "弗", "毋", "没"]}, {"label": "代词、指示", "words": ["我", "吾", "余", "予", "尔", "汝", "其", "之", "此", "彼", "是", "斯", "兹", "谁", "孰", "何", "奚", "焉", "安", "某"]}, {"label": "介词、连词", "words": ["以", "与", "于", "於", "而", "则", "乃", "且", "及", "因", "从", "自", "为", "被", "将", "由", "向", "把", "和"]}, {"label": "语气词", "words": ["乎", "也", "者", "所", "兮", "哉", "矣", "耶", "邪", "欤", "夫", "耳", "尔", "么"]}, {"label": "副词", "words": ["亦", "又", "更", "犹", "尚", "复", "还", "即", "便", "只", "但", "皆", "俱", "共", "已", "既", "遂", "每", "方", "正", "才", "惟", "唯", "独", "最", "甚", "岂", "宁", "都", "总", "偏", "曾", "久", "常", "屡", "忽", "终", "竟", "却", "恰", "仍", "必", "定", "或", "乍", "渐", "暂", "频", "浑", "殊", "颇"]}, {"label": "情态、助动", "words": ["可", "能", "得", "欲", "应", "须", "当", "宜", "堪", "敢", "肯", "会", "足"]}, {"label": "比况", "words": ["如", "似", "若", "犹", "同", "类"]}, {"label": "泛义高频字", "words": ["人", "年", "日", "时", "一", "二", "两", "来", "去", "见", "知", "相", "多", "少", "几", "中", "上", "下", "里", "处", "在", "出", "入", "作", "成", "言", "看", "闻", "今", "后", "前", "事", "物"]}]};
+const STATUS = { clear: "一看就懂", partial: "勉强", unclear: "看不懂" };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const pct = (x, d = 1) => (x * 100).toFixed(d) + "%";
+const runById = (id) => DATA.runs.find((r) => r.id === id);
+const verseLines = (text) => text.replace(/\s+/g, "").split(/(?<=[。！？；])/).filter(Boolean);
+const tally = (run) => run.topics.reduce((a, t) => ((a[t.status] = (a[t.status] || 0) + 1), a), {});
+
+let current = "k10_clean";
+let sortBy = "id";
+
+function poemHTML(p) {
+  const ls = verseLines(p.text);
+  const long = ls.length > 3;
+  return `<figure class="poem">
+    <figcaption><span class="pt">《${esc(p.title)}》</span><span class="pa">${esc(p.author)}</span><span class="pp num" title="主题比例">${p.prob.toFixed(2)}</span></figcaption>
+    <div class="verse${long ? " clamp" : ""}">${ls.map((l) => `<span>${esc(l)}</span>`).join("")}</div>
+    ${long ? `<button class="more" type="button" aria-expanded="false">展开全文（${ls.length} 句）</button>` : ""}
+  </figure>`;
+}
+
+function topicHTML(t, maxP, maxShare) {
+  return `<article class="topic" data-status="${t.status}">
+    <div class="t-head">
+      <span class="num">主题 ${t.id}</span>
+      <span class="chip ${t.status}">${STATUS[t.status]}</span>
+      <span class="t-share" title="占全部文本的份量"><span class="meter"><i style="width:${(t.share / maxShare) * 100}%"></i></span><span class="num">${pct(t.share)}</span></span>
+    </div>
+    <h3>${esc(t.name)}</h3>
+    <ol class="chars">${t.words
+      .map(([c, p]) => `<li title="${esc(c)} · 概率 ${pct(p, 2)}"><span class="g">${esc(c)}</span><span class="w"><i style="width:${(p / maxP) * 100}%"></i></span></li>`)
+      .join("")}</ol>
+    <div class="poems">${t.poems.map(poemHTML).join("")}</div>
+  </article>`;
+}
+
+function renderRunSwitch() {
+  const groups = [...new Set(DATA.runs.map((r) => r.group))];
+  document.getElementById("run-switch").innerHTML = groups
+    .map((g) => `<fieldset><legend>${esc(g)}</legend><div class="seg">${DATA.runs
+      .filter((r) => r.group === g)
+      .map((r) => `<button type="button" data-run="${r.id}" aria-pressed="${r.id === current}">${esc(r.label)}</button>`)
+      .join("")}</div></fieldset>`)
+    .join("");
+}
+
+function renderRun() {
+  const run = runById(current);
+  const maxP = Math.max(...run.topics.flatMap((t) => t.words.map((w) => w[1])));
+  const maxShare = Math.max(...run.topics.map((t) => t.share));
+  const topics = [...run.topics].sort((a, b) => (sortBy === "share" ? b.share - a.share : a.id - b.id));
+  const n = tally(run);
+  document.getElementById("run-meta").innerHTML = `<span><b>${esc(run.group)} · ${esc(run.label)}</b>：${esc(run.desc)}</span>
+    <span class="tally">${["clear", "partial", "unclear"]
+      .filter((s) => n[s])
+      .map((s) => `<span class="chip ${s}">${STATUS[s]} ${n[s]}</span>`)
+      .join("")}</span>`;
+  document.getElementById("topics").innerHTML = topics.map((t) => topicHTML(t, maxP, maxShare)).join("");
+  document.querySelectorAll("#run-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.run === current));
+  document.querySelectorAll("#sort-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.sort === sortBy));
+}
+
+let splitKey = "去停用字";
+function renderSplit() {
+  const s = DATA.splits[splitKey];
+  const r10 = runById(s.k10), r20 = runById(s.k20);
+  const rows = s.rows.map((row, j) => {
+    const mx = Math.max(...row);
+    return { j, row, mx, main: row.indexOf(mx) };
+  });
+  rows.sort((a, b) => a.main - b.main || b.mx - a.mx);
+  const head = `<thead><tr><th class="corner" scope="col">20 主题 ↓　10 主题 →</th>${r10.topics
+    .map((t) => `<th class="col" scope="col" title="${esc(t.name)}"><span class="vname">${esc(t.name)}</span><span class="vnum">${t.id}</span></th>`)
+    .join("")}</tr></thead>`;
+  const body = rows
+    .map((r, i) => {
+      const t = r20.topics[r.j];
+      const start = i > 0 && rows[i - 1].main !== r.main ? ' class="group-start"' : "";
+      return `<tr${start}><th scope="row"><span class="rn">${t.id}</span>${esc(t.name)}<span class="rc">${s.counts[r.j].toLocaleString()} 首</span></th>${r.row
+        .map((v, i2) => {
+          const cls = [v === r.mx ? "top" : "", v > 0.55 ? "hi" : ""].filter(Boolean).join(" ");
+          return `<td${cls ? ` class="${cls}"` : ""} style="--v:${v}" title="${esc(t.name)} → ${esc(r10.topics[i2].name)}：${pct(v)}">${v >= 0.1 ? Math.round(v * 100) : ""}</td>`;
+        })
+        .join("")}</tr>`;
+    })
+    .join("");
+  document.getElementById("heat").innerHTML = head + `<tbody>${body}</tbody>`;
+
+  // 文字摘要：每个 10 主题拆成哪些 20 主题（按“主要来源”归组）
+  const byMain = new Map();
+  rows.forEach((r) => byMain.set(r.main, [...(byMain.get(r.main) || []), r20.topics[r.j].name]));
+  document.getElementById("split-notes").innerHTML = `<p>${r10.topics
+    .map((t) => {
+      const kids = byMain.get(t.id) || [];
+      if (!kids.length) return `<b>${esc(t.name)}</b> 没有对应的 20 主题`;
+      return kids.length === 1 ? `<b>${esc(t.name)}</b> → ${esc(kids[0])}（基本不变）` : `<b>${esc(t.name)}</b> → ${kids.map(esc).join("、")}`;
+    })
+    .join("；<br>")}。</p>`;
+  document.querySelectorAll("#split-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.split === splitKey));
+}
+
+function renderCompare() {
+  const fmt = (id) => {
+    const r = runById(id), n = tally(r);
+    return `${n.clear || 0} / ${r.k}` + (n.partial ? `（另有 ${n.partial} 个勉强）` : "");
+  };
+  [["cmp-k10-raw", "k10"], ["cmp-k10-clean", "k10_clean"], ["cmp-k20-raw", "k20"], ["cmp-k20-stop", "k20_stopwords"], ["cmp-k20-clean", "k20_clean"]].forEach(
+    ([el, id]) => (document.getElementById(el).textContent = fmt(id))
+  );
+}
+
+function renderStop() {
+  document.getElementById("stop").innerHTML = DATA.stopwords
+    .map((g) => `<div class="stop-row"><span>${esc(g.label)}</span><span class="glyphs">${g.words.map(esc).join("")}</span></div>`)
+    .join("");
+}
+
+document.getElementById("split-switch").innerHTML = Object.keys(DATA.splits)
+  .map((k) => `<button type="button" data-split="${esc(k)}" aria-pressed="${k === splitKey}">${esc(k)}</button>`)
+  .join("");
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.run) {
+    current = b.dataset.run;
+    renderRun();
+    try { history.replaceState(null, "", "#" + current); } catch (_) {}
+  } else if (b.dataset.sort) {
+    sortBy = b.dataset.sort;
+    renderRun();
+  } else if (b.dataset.split) {
+    splitKey = b.dataset.split;
+    renderSplit();
+  } else if (b.classList.contains("more")) {
+    const v = b.previousElementSibling;
+    const open = v.classList.toggle("clamp") === false;
+    b.setAttribute("aria-expanded", open);
+    b.textContent = open ? "收起" : `展开全文（${v.children.length} 句）`;
+  }
+});
+
+const fromHash = location.hash.slice(1);
+if (runById(fromHash)) current = fromHash;
+renderRunSwitch();
+renderRun();
+renderSplit();
+renderCompare();
+renderStop();
+</script>
+
+</body>
+</html>

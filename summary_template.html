@@ -1,0 +1,441 @@
+<title>全唐诗主题模型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：单栏阅读页；页首竖排标题如诗卷题签，下接五组实验的主题卡片网格、拆分热图与结论 */
+:root {
+  --bg: #f2f4f1;
+  --surface: #fbfcfa;
+  --ink: #1c2420;
+  --muted: #5a655f;
+  --line: #d6ddd7;
+  --accent: #2f5d86;       /* 石青 */
+  --accent-soft: #dde7f0;
+  --on-accent: #ffffff;
+  --ochre: #9a6a2c;        /* 赭石，用于份量条 */
+  --ok: #2c7a4b;
+  --warn: #9c6400;
+  --bad: #a43b3b;
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111513; --surface: #181e1b; --ink: #e2e8e3; --muted: #98a39c; --line: #2b3530;
+    --accent: #8db4da; --accent-soft: #1d2d3c; --on-accent: #0d1620; --ochre: #d1a062;
+    --ok: #6cc08e; --warn: #e2aa4c; --bad: #e57d7d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111513; --surface: #181e1b; --ink: #e2e8e3; --muted: #98a39c; --line: #2b3530;
+  --accent: #8db4da; --accent-soft: #1d2d3c; --on-accent: #0d1620; --ochre: #d1a062;
+  --ok: #6cc08e; --warn: #e2aa4c; --bad: #e57d7d; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.75;
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1120px; margin-inline: auto; display: grid; gap: 56px; }
+.wrap > *, .section-head > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.3; }
+h2 { font-size: var(--step-2); font-weight: 900; }
+p { margin: 0; }
+.prose { max-width: 66ch; display: grid; gap: 12px; }
+.eyebrow { font-size: var(--step--1); letter-spacing: 0.12em; color: var(--muted); }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--font-data); font-size: 0.9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; }
+
+/* ── 页首 ── */
+.hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: start; padding-top: 48px; }
+.hero h1 {
+  writing-mode: vertical-rl;
+  font-size: 3.25rem; font-weight: 900; letter-spacing: 0.18em;
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: 14px;
+}
+.hero h1 small { font-size: 0.4em; font-weight: 600; color: var(--muted); letter-spacing: 0.3em; margin-block-start: 0.6em; }
+.hero .lead { font-size: var(--step-1); max-width: 40em; }
+.hero-body { display: grid; gap: 20px; min-width: 0; padding-top: 6px; }
+.facts { display: flex; flex-wrap: wrap; gap: 12px 36px; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); }
+.facts div { display: grid; }
+.facts dt { font-size: var(--step--1); color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--font-data); font-size: var(--step-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .hero { grid-template-columns: 1fr; gap: 20px; padding-top: 32px; }
+  .hero h1 { writing-mode: horizontal-tb; font-size: 2.25rem; letter-spacing: 0.06em; border-inline-start: 0; padding-inline-start: 0; border-block-end: 3px solid var(--accent); padding-block-end: 8px; }
+  .hero h1 small { display: block; margin: 4px 0 0; letter-spacing: 0.1em; }
+}
+
+/* ── 方法 ── */
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 32px; margin: 0; padding: 0; list-style: none; }
+.method li { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+.method b { font-family: var(--font-display); font-size: var(--step-1); }
+.method span { color: var(--muted); }
+
+/* ── 实验切换 ── */
+.section-head { display: grid; gap: 8px; }
+.switch { display: flex; flex-wrap: wrap; gap: 16px; }
+.switch fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.switch legend { font-size: var(--step--1); color: var(--muted); padding: 0; letter-spacing: 0.08em; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button {
+  font: inherit; font-size: var(--step--1); color: var(--ink); background: transparent;
+  border: 0; padding: 7px 14px; cursor: pointer;
+}
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button:hover { background: var(--accent-soft); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.run-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); }
+.run-meta .tally { display: flex; gap: 8px; flex-wrap: wrap; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+
+/* ── 主题卡片 ── */
+.topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+.topic {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px 18px; display: grid; gap: 12px; align-content: start; min-width: 0;
+}
+.t-head { display: flex; align-items: center; gap: 10px; font-size: var(--step--1); color: var(--muted); }
+.t-share { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+.meter { width: 56px; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ochre); }
+.chip { font-size: 0.75rem; line-height: 1; padding: 4px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.clear { color: var(--ok); }
+.chip.partial { color: var(--warn); }
+.chip.unclear { color: var(--bad); }
+.topic[data-status="unclear"] { border-style: dashed; }
+.topic h3 { font-size: var(--step-1); font-weight: 600; }
+.chars { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.chars li { display: grid; justify-items: center; gap: 3px; }
+.chars .g { font-family: var(--font-display); font-size: 1.375rem; line-height: 1.2; }
+.chars .w { width: 100%; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.chars .w i { display: block; height: 100%; background: var(--accent); }
+.poems { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.poem { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.poem figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: var(--step--1); }
+.poem .pt { font-family: var(--font-display); font-weight: 600; font-size: var(--step-0); }
+.poem .pa { color: var(--muted); }
+.poem .pp { margin-inline-start: auto; color: var(--muted); }
+.verse { font-family: var(--font-display); font-size: var(--step-0); line-height: 1.8; overflow-wrap: anywhere; }
+.verse span { display: block; }
+.verse.clamp span:nth-child(n+4) { display: none; }
+.more { font: inherit; font-size: var(--step--1); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; }
+.more:hover { text-decoration: underline; }
+
+/* ── 拆分热图 ── */
+.heat-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.heat { border-collapse: collapse; font-size: var(--step--1); min-width: 640px; width: 100%; }
+.heat th, .heat td { border-bottom: 1px solid var(--line); }
+.heat thead th { vertical-align: bottom; padding: 10px 4px 8px; font-weight: 500; }
+.heat thead th.col { width: 52px; }
+.heat .vname { writing-mode: vertical-rl; font-family: var(--font-display); letter-spacing: 0.06em; display: inline-block; max-height: 9.5em; overflow: hidden; }
+.heat .vnum { display: block; font-family: var(--font-data); color: var(--muted); margin-top: 6px; }
+.heat .corner { text-align: start; color: var(--muted); padding-inline: 12px; font-weight: 400; }
+.heat tbody th { text-align: start; font-weight: 400; padding: 6px 12px; white-space: nowrap; }
+.heat tbody th .rn { font-family: var(--font-data); color: var(--muted); display: inline-block; width: 1.6em; }
+.heat tbody th .rc { color: var(--muted); font-family: var(--font-data); margin-inline-start: 6px; }
+.heat td {
+  text-align: center; font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  background: color-mix(in oklab, var(--accent) calc(var(--v) * 100%), var(--surface));
+  color: var(--ink); padding: 6px 2px;
+}
+.heat td.hi { color: var(--on-accent); }
+.heat td.top { box-shadow: inset 0 0 0 2px var(--ink); }
+.heat tr.group-start th, .heat tr.group-start td { border-top: 2px solid var(--muted); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); font-size: var(--step--1); }
+.ramp { width: 140px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--surface), var(--accent)); border: 1px solid var(--line); }
+
+/* ── 对比表 ── */
+.table-wrap { overflow-x: auto; }
+table.cmp { border-collapse: collapse; width: 100%; min-width: 560px; }
+.cmp th, .cmp td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmp thead th { font-size: var(--step--1); color: var(--muted); font-weight: 500; }
+.cmp tbody th { font-weight: 500; white-space: nowrap; }
+
+/* ── 结论 ── */
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px 32px; margin: 0; padding: 0; list-style: none; counter-reset: f; }
+.findings li { display: grid; gap: 6px; min-width: 0; }
+.findings h3 { font-size: var(--step-1); font-weight: 600; }
+.findings p { color: var(--muted); }
+
+/* ── 停用字 ── */
+.stop { display: grid; gap: 10px; }
+.stop-row { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.stop-row span:first-child { color: var(--muted); font-size: var(--step--1); }
+.stop-row .glyphs { font-family: var(--font-display); font-size: var(--step-1); letter-spacing: 0.35em; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .stop-row { grid-template-columns: 1fr; gap: 0; } }
+
+footer { color: var(--muted); font-size: var(--step--1); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { .topic { transition: border-color .15s; } .topic:hover { border-color: var(--muted); } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <h1>全唐诗的主题<small>LDA 主题模型</small></h1>
+    <div class="hero-body">
+      <p class="eyebrow">CHI3242 · 第 7 周练习 · 主题模型</p>
+      <p class="lead">把《全唐诗》每一首诗当作一篇文件，以字为单位，用 LDA 找出“经常一起出现的一组字”。这一页汇总了五组实验：10 个和 20 个主题，不去字、只去虚字、去掉 164 个停用字，以及每个主题的前 10 个字和两首最典型的诗。</p>
+      <dl class="facts">
+        <div><dt>诗</dt><dd>45,726</dd></div>
+        <div><dt>字（去标点）</dt><dd>2,589,335</dd></div>
+        <div><dt>字表（字频 ≥ 5）</dt><dd>5,481</dd></div>
+        <div><dt>实验</dt><dd>5 组</dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <section class="section-head" aria-labelledby="m-h">
+    <h2 id="m-h">做法</h2>
+    <ul class="method">
+      <li><b>语料</b><span>qhchina-data 的 <code>全唐诗.json</code>，简体，每首诗一篇文件。</span></li>
+      <li><b>以字为单位</b><span>不分词；只保留汉字，标点和符号全部去掉。</span></li>
+      <li><b>模型</b><span><code>LDAGibbsSampler</code>，200 次迭代，seed 42；alpha = 50/K 并自动估计，beta = 1/K。</span></li>
+      <li><b>典型诗</b><span>该主题比例最高的诗；跳过不到 20 字的残句和重收的诗。</span></li>
+    </ul>
+  </section>
+
+  <section class="section-head" aria-labelledby="r-h" id="runs">
+    <h2 id="r-h">五组实验的主题</h2>
+    <div class="toolbar">
+      <div class="switch" id="run-switch"></div>
+      <div class="switch">
+        <fieldset>
+          <legend>排序</legend>
+          <div class="seg" id="sort-switch">
+            <button type="button" data-sort="id" aria-pressed="true">编号</button>
+            <button type="button" data-sort="share" aria-pressed="false">份量</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="run-meta" id="run-meta"></div>
+    <div class="topics" id="topics"></div>
+    <p class="legend">字下的蓝条 = 该字在主题中的概率（同一组实验内按最大值缩放）；右上的赭色条和百分比 = 主题占全部文本的份量；右侧数字 = 典型诗的主题比例。</p>
+  </section>
+
+  <section class="section-head" aria-labelledby="s-h">
+    <h2 id="s-h">从 10 个到 20 个：哪些主题被拆开了</h2>
+    <div class="prose">
+      <p>每首诗在两个模型里各有一个最主要的主题。下表的每一行是一个 20 主题，每个格子表示这一行的诗里，有多少比例在 10 主题模型中归入该列。行按“主要来自哪个 10 主题”排序，同一列下连续深色的几行，就是被拆开的那个 10 主题。</p>
+    </div>
+    <div class="toolbar">
+      <div class="switch">
+        <fieldset>
+          <legend>实验</legend>
+          <div class="seg" id="split-switch"></div>
+        </fieldset>
+      </div>
+      <div class="legend"><span>0%</span><span class="ramp" aria-hidden="true"></span><span>100%</span><span>黑框 = 该行的最大值</span></div>
+    </div>
+    <div class="heat-wrap"><table class="heat" id="heat"></table></div>
+    <div class="prose" id="split-notes"></div>
+  </section>
+
+  <section class="section-head" aria-labelledby="c-h">
+    <h2 id="c-h">去停用字前后</h2>
+    <div class="table-wrap">
+      <table class="cmp">
+        <thead><tr><th scope="col"></th><th scope="col">原始</th><th scope="col">只去 33 个虚字</th><th scope="col">去 164 个停用字</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">K=10 一看就懂</th><td class="num" id="cmp-k10-raw"></td><td>—</td><td class="num" id="cmp-k10-clean"></td></tr>
+          <tr><th scope="row">K=20 一看就懂</th><td class="num" id="cmp-k20-raw"></td><td class="num" id="cmp-k20-stop"></td><td class="num" id="cmp-k20-clean"></td></tr>
+          <tr><th scope="row">看不懂的主题</th><td>“不 无 有 为 何 人 一”主导的虚字主题</td><td>“人 年 日”打头的泛义主题</td><td>没有纯虚字主题；乐府民歌、神物两个主题比较勉强</td></tr>
+          <tr><th scope="row">新出现</th><td>—</td><td>离别相思、禅寺、文士仕途、寓言讽喻</td><td>游仙和闲居叹老（K=10 就出现）、田园、怀古、庭园咏物</td></tr>
+          <tr><th scope="row">消失</th><td>—</td><td>口语诗</td><td>骚体（兮）、口语诗等文体主题</td></tr>
+          <tr><th scope="row">少于 24 字的诗</th><td class="num">3,529</td><td>—</td><td class="num">11,706</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section-head" aria-labelledby="f-h">
+    <h2 id="f-h">结论</h2>
+    <ul class="findings">
+      <li><h3>题材主题很清楚</h3><p>边塞、江行、山林寺院、郊庙乐章、花间艳词、秋夜，前几个字就是意象，典型诗的主题比例在 0.9 以上。边塞和江行在每组实验里都几乎不变，是用字最独立的两类题材。</p></li>
+      <li><h3>虚字主题是文体，不是题材</h3><p>不去字时，“不 无 有 为 何”会自成主题。读典型诗会发现它们对应骚体、议论和晚唐口语诗，抓到的是语体。</p></li>
+      <li><h3>停用字表是研究者的选择</h3><p>研究题材就去停用字：K=10 的十个主题全部可以命名，还多出游仙、闲居叹老。研究文体就别去：“兮”字主题和口语主题会随之消失。</p></li>
+      <li><h3>主题数决定粒度</h3><p>10 个主题给出大类，20 个主题拆出诗歌传统：送别拆成羁旅、离情、怀古；德·道拆成郊庙乐章和议论讽谏；春花拆成花间词和春景。</p></li>
+      <li><h3>一定要读诗</h3><p>字表有时会误导。原始 K=20 的“清幽”主题收了崔萱写情的《叙别》；去停用字后 K=20 的主题 14 两首典型诗都是韦应物，更像个人风格。</p></li>
+      <li><h3>短诗不可靠</h3><p>残句只有十几个字，主题比例常接近 1；去停用字后短诗更多。挑典型诗时要设最低字数。</p></li>
+    </ul>
+  </section>
+
+  <section class="section-head" aria-labelledby="w-h">
+    <h2 id="w-h">停用字表</h2>
+    <p class="prose">qhchina 自带的古汉语表只有 30 多个字，连“有 何 为 我 一”都没有，所以另外整理了这份 <code>stopwords.txt</code>。有意保留：君、道、千、万、子。</p>
+    <div class="stop" id="stop"></div>
+  </section>
+
+  <footer>
+    <p>代码：<code>tang_lda.py</code>（训练）· <code>build_summary.py</code>（生成本页）。详细分析：<code>分析.md</code>、<code>分析_去停用词.md</code>。</p>
+    <p>主题名称是根据前 10 个字和典型诗人工取的，模型本身不给主题命名。</p>
+  </footer>
+</div>
+
+<script>
+const DATA = __DATA__;
+const STATUS = { clear: "一看就懂", partial: "勉强", unclear: "看不懂" };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const pct = (x, d = 1) => (x * 100).toFixed(d) + "%";
+const runById = (id) => DATA.runs.find((r) => r.id === id);
+const verseLines = (text) => text.replace(/\s+/g, "").split(/(?<=[。！？；])/).filter(Boolean);
+const tally = (run) => run.topics.reduce((a, t) => ((a[t.status] = (a[t.status] || 0) + 1), a), {});
+
+let current = "k10_clean";
+let sortBy = "id";
+
+function poemHTML(p) {
+  const ls = verseLines(p.text);
+  const long = ls.length > 3;
+  return `<figure class="poem">
+    <figcaption><span class="pt">《${esc(p.title)}》</span><span class="pa">${esc(p.author)}</span><span class="pp num" title="主题比例">${p.prob.toFixed(2)}</span></figcaption>
+    <div class="verse${long ? " clamp" : ""}">${ls.map((l) => `<span>${esc(l)}</span>`).join("")}</div>
+    ${long ? `<button class="more" type="button" aria-expanded="false">展开全文（${ls.length} 句）</button>` : ""}
+  </figure>`;
+}
+
+function topicHTML(t, maxP, maxShare) {
+  return `<article class="topic" data-status="${t.status}">
+    <div class="t-head">
+      <span class="num">主题 ${t.id}</span>
+      <span class="chip ${t.status}">${STATUS[t.status]}</span>
+      <span class="t-share" title="占全部文本的份量"><span class="meter"><i style="width:${(t.share / maxShare) * 100}%"></i></span><span class="num">${pct(t.share)}</span></span>
+    </div>
+    <h3>${esc(t.name)}</h3>
+    <ol class="chars">${t.words
+      .map(([c, p]) => `<li title="${esc(c)} · 概率 ${pct(p, 2)}"><span class="g">${esc(c)}</span><span class="w"><i style="width:${(p / maxP) * 100}%"></i></span></li>`)
+      .join("")}</ol>
+    <div class="poems">${t.poems.map(poemHTML).join("")}</div>
+  </article>`;
+}
+
+function renderRunSwitch() {
+  const groups = [...new Set(DATA.runs.map((r) => r.group))];
+  document.getElementById("run-switch").innerHTML = groups
+    .map((g) => `<fieldset><legend>${esc(g)}</legend><div class="seg">${DATA.runs
+      .filter((r) => r.group === g)
+      .map((r) => `<button type="button" data-run="${r.id}" aria-pressed="${r.id === current}">${esc(r.label)}</button>`)
+      .join("")}</div></fieldset>`)
+    .join("");
+}
+
+function renderRun() {
+  const run = runById(current);
+  const maxP = Math.max(...run.topics.flatMap((t) => t.words.map((w) => w[1])));
+  const maxShare = Math.max(...run.topics.map((t) => t.share));
+  const topics = [...run.topics].sort((a, b) => (sortBy === "share" ? b.share - a.share : a.id - b.id));
+  const n = tally(run);
+  document.getElementById("run-meta").innerHTML = `<span><b>${esc(run.group)} · ${esc(run.label)}</b>：${esc(run.desc)}</span>
+    <span class="tally">${["clear", "partial", "unclear"]
+      .filter((s) => n[s])
+      .map((s) => `<span class="chip ${s}">${STATUS[s]} ${n[s]}</span>`)
+      .join("")}</span>`;
+  document.getElementById("topics").innerHTML = topics.map((t) => topicHTML(t, maxP, maxShare)).join("");
+  document.querySelectorAll("#run-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.run === current));
+  document.querySelectorAll("#sort-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.sort === sortBy));
+}
+
+let splitKey = "去停用字";
+function renderSplit() {
+  const s = DATA.splits[splitKey];
+  const r10 = runById(s.k10), r20 = runById(s.k20);
+  const rows = s.rows.map((row, j) => {
+    const mx = Math.max(...row);
+    return { j, row, mx, main: row.indexOf(mx) };
+  });
+  rows.sort((a, b) => a.main - b.main || b.mx - a.mx);
+  const head = `<thead><tr><th class="corner" scope="col">20 主题 ↓　10 主题 →</th>${r10.topics
+    .map((t) => `<th class="col" scope="col" title="${esc(t.name)}"><span class="vname">${esc(t.name)}</span><span class="vnum">${t.id}</span></th>`)
+    .join("")}</tr></thead>`;
+  const body = rows
+    .map((r, i) => {
+      const t = r20.topics[r.j];
+      const start = i > 0 && rows[i - 1].main !== r.main ? ' class="group-start"' : "";
+      return `<tr${start}><th scope="row"><span class="rn">${t.id}</span>${esc(t.name)}<span class="rc">${s.counts[r.j].toLocaleString()} 首</span></th>${r.row
+        .map((v, i2) => {
+          const cls = [v === r.mx ? "top" : "", v > 0.55 ? "hi" : ""].filter(Boolean).join(" ");
+          return `<td${cls ? ` class="${cls}"` : ""} style="--v:${v}" title="${esc(t.name)} → ${esc(r10.topics[i2].name)}：${pct(v)}">${v >= 0.1 ? Math.round(v * 100) : ""}</td>`;
+        })
+        .join("")}</tr>`;
+    })
+    .join("");
+  document.getElementById("heat").innerHTML = head + `<tbody>${body}</tbody>`;
+
+  // 文字摘要：每个 10 主题拆成哪些 20 主题（按“主要来源”归组）
+  const byMain = new Map();
+  rows.forEach((r) => byMain.set(r.main, [...(byMain.get(r.main) || []), r20.topics[r.j].name]));
+  document.getElementById("split-notes").innerHTML = `<p>${r10.topics
+    .map((t) => {
+      const kids = byMain.get(t.id) || [];
+      if (!kids.length) return `<b>${esc(t.name)}</b> 没有对应的 20 主题`;
+      return kids.length === 1 ? `<b>${esc(t.name)}</b> → ${esc(kids[0])}（基本不变）` : `<b>${esc(t.name)}</b> → ${kids.map(esc).join("、")}`;
+    })
+    .join("；<br>")}。</p>`;
+  document.querySelectorAll("#split-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.split === splitKey));
+}
+
+function renderCompare() {
+  const fmt = (id) => {
+    const r = runById(id), n = tally(r);
+    return `${n.clear || 0} / ${r.k}` + (n.partial ? `（另有 ${n.partial} 个勉强）` : "");
+  };
+  [["cmp-k10-raw", "k10"], ["cmp-k10-clean", "k10_clean"], ["cmp-k20-raw", "k20"], ["cmp-k20-stop", "k20_stopwords"], ["cmp-k20-clean", "k20_clean"]].forEach(
+    ([el, id]) => (document.getElementById(el).textContent = fmt(id))
+  );
+}
+
+function renderStop() {
+  document.getElementById("stop").innerHTML = DATA.stopwords
+    .map((g) => `<div class="stop-row"><span>${esc(g.label)}</span><span class="glyphs">${g.words.map(esc).join("")}</span></div>`)
+    .join("");
+}
+
+document.getElementById("split-switch").innerHTML = Object.keys(DATA.splits)
+  .map((k) => `<button type="button" data-split="${esc(k)}" aria-pressed="${k === splitKey}">${esc(k)}</button>`)
+  .join("");
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.run) {
+    current = b.dataset.run;
+    renderRun();
+    try { history.replaceState(null, "", "#" + current); } catch (_) {}
+  } else if (b.dataset.sort) {
+    sortBy = b.dataset.sort;
+    renderRun();
+  } else if (b.dataset.split) {
+    splitKey = b.dataset.split;
+    renderSplit();
+  } else if (b.classList.contains("more")) {
+    const v = b.previousElementSibling;
+    const open = v.classList.toggle("clamp") === false;
+    b.setAttribute("aria-expanded", open);
+    b.textContent = open ? "收起" : `展开全文（${v.children.length} 句）`;
+  }
+});
+
+const fromHash = location.hash.slice(1);
+if (runById(fromHash)) current = fromHash;
+renderRunSwitch();
+renderRun();
+renderSplit();
+renderCompare();
+renderStop();
+</script>
